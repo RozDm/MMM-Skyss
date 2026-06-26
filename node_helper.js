@@ -11,6 +11,7 @@ module.exports = NodeHelper.create({
         if (notification !== "getstop") return;
 
         var debug = payload && payload.debug;
+        var id = payload && payload.id;   // echoed back so the right instance/request gets the response
         const postData = JSON.stringify(payload.body);
 
         if (debug) {
@@ -57,13 +58,13 @@ module.exports = NodeHelper.create({
                     console.log("[MMM-Skyss] API response received, data length:", data.length);
                     console.log("[MMM-Skyss] Response preview:", data.substring(0, 200) + "...");
                 }
-                self.sendSocketNotification("getstop", { response: data });
+                self.sendSocketNotification("getstop", { id: id, response: data });
             });
         });
 
         req.on("error", (e) => {
             console.error("[MMM-Skyss] API request error:", e.message);
-            self.sendSocketNotification("getstop", { err: e.message });
+            self.sendSocketNotification("getstop", { id: id, err: e.message });
         });
 
         req.on("timeout", () => {
