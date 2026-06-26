@@ -1,5 +1,21 @@
 # MMM-Skyss Change Log
 
+## [2.1.0] - 2026-06-26
+- Multiple module instances are now isolated: each request is tagged with a unique id and tracked in a per-instance map, so the broadcast socket response only resolves the instance that issued it (the previous shared FIFO queue could cross responses between instances).
+- Errors no longer wipe the board. The last good departures stay on screen and the next poll backs off exponentially, capped by the new `maxReloadInterval` option (default 5 minutes). A successful but empty response now shows a "No departures" message; "Loading…" is only shown before the first successful poll.
+- Added a test suite (`npm test`, built on Node's built-in `node:test` — still zero dependencies) and a GitHub Actions CI workflow running syntax checks, the tests on Node 18/20/22, and `npm audit`.
+- Renamed the leftover `ruter` CSS classes to `skyss`, accept the correctly spelled `humanizeTimeThreshold` as an alias for `humanizeTimeTreshold`, and documented the realtime "+1 minute" adjustment.
+
+## [2.0.2] - 2026-06-26
+- Fix: `formatTime` now honours the configured 12/24-hour `timeFormat` (via `moment`). Previously it always rendered 24-hour time and the format detection in `start()` was dead code.
+- Fix: added a `stops` default and an array guard so an omitted/invalid `stops` config no longer crashes the module with a `TypeError`. When no valid stops are configured the pointless API call is skipped.
+- Fix: header styling now actually applies (`thead.className` instead of the no-op `thead.addClass`); header cells are wrapped in a `<tr>` and body rows in a `<tbody>` for valid table markup.
+- Fix: past departures no longer display as negative minutes (e.g. "-2 minutes"); they collapse to "Now".
+- Fix: `animationSpeed` is now passed to `updateDom()` so the option takes effect.
+- Fix: each module instance now uses its own request queue (`this.requests`), so running multiple MMM-Skyss instances no longer crosses responses.
+- Hardening: the node helper caps the response body at 2 MB and aborts oversized responses to avoid memory exhaustion.
+- Cleanup: declared the previously implicit global `inMinutes`, removed the unused `previousJourneys`, and refreshed the stale file header.
+
 ## [2.0.1] - 2026-06-25
 - Security/supply-chain: removed all runtime dependencies from `package.json`. The placeholder/name-squatting packages (`crypto`, `http`, `https`) and the unused `async` package are gone; the module relies only on Node's built-in modules and the MagicMirror core. No `npm install` is required anymore.
 - `node_helper.js` now uses the built-in `node:https`, gates all logging behind the `debug` flag (previously it logged request/response unconditionally) and adds a request timeout (15s).
