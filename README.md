@@ -7,7 +7,7 @@
 ![1](images/MMM-Skyss-1.png)
 ![2](images/MMM-Skyss-2.png)
 
-Current version is 2.2.0. See [changelog](CHANGELOG.md "Version history") for version history.
+Current version is 2.3.0. See [changelog](CHANGELOG.md "Version history") for version history.
 
 ## Installation
 
@@ -70,6 +70,7 @@ animationSpeed | How fast the animation changes when updating mirror - in millis
 fade | Set this to true to fade list from light to dark | true  
 fadePoint | Start fading on 1/4th of the list | 0.25
 useRealtime | Use realtime (DisplayTime) when available instead of only scheduled time | true
+showDeviations | Show Skyss service messages / deviations (from the API's `Messages` field) when present | true
 debug | Enable verbose console logging for troubleshooting | false
 
 ## Skyss API v3 Migration (IMPORTANT)
@@ -241,4 +242,4 @@ If you add another language, please open a pull request.
 
 # Future enhancements
 
-1. Show deviations (needs the Skyss v3 deviation field names; not yet implemented)
+Deviations are now shown best-effort from the API's top-level `Messages` field (`showDeviations`, default on). The message object shape is undocumented, so the text is pulled from common field names. If your live board shows a disruption that this module does not, capture the response with `debug: true` and open an issue with the `Messages` JSON so the extraction can be refined.

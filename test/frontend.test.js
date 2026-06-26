@@ -193,10 +193,11 @@ test("poll: walkingTime hides departures too soon to catch", () => {
 
 test("getDom: LOADING before first load, NODEPARTURES after", () => {
     const ctx = makeInstance(def);
+    const msg = () => ctx.getDom().childNodes.find((c) => c.className === "small dimmed");
     ctx.hasLoaded = false;
-    assert.strictEqual(ctx.getDom().innerHTML, "LOADING");
+    assert.strictEqual(msg().innerHTML, "LOADING");
     ctx.hasLoaded = true;
-    assert.strictEqual(ctx.getDom().innerHTML, "NODEPARTURES");
+    assert.strictEqual(msg().innerHTML, "NODEPARTURES");
 });
 
 test("getDom: renders a tbody with one row per journey", () => {
@@ -212,10 +213,43 @@ test("getDom: renders a tbody with one row per journey", () => {
             time: { Status: "Realtime", Timestamp: new Date(now + 9 * 60000).toISOString() }
         }
     ];
-    const table = ctx.getDom();
-    assert.strictEqual(table.tagName, "table");
+    const table = ctx.getDom().childNodes.find((c) => c.tagName === "table");
+    assert.ok(table, "wrapper contains a table");
     assert.strictEqual(table.className, "skyss small");
     const tbody = table.childNodes.find((c) => c.tagName === "tbody");
     assert.ok(tbody, "table has a tbody");
     assert.strictEqual(tbody.childNodes.length, 1);
+});
+
+// ---- deviations ---------------------------------------------------------
+
+test("getStopInfo: extracts deviation text from the Messages array", () => {
+    const ctx = makeInstance(def, { stops: [{ stopId: "1", stopGroupId: "2" }] });
+    ctx.getStopInfo(ctx.config.stops, () => {});
+    const id = ctx._sent[0].p.id;
+    const body = JSON.stringify({
+        PassingTimes: [],
+        Stops: {},
+        Messages: [{ Text: "Buss 4 er forsinket" }, "Plain string", { Foo: "ignored" }, { Title: "Omkjøring" }]
+    });
+    ctx.socketNotificationReceived("getstop", { id, response: body });
+    assert.deepStrictEqual(ctx.deviations, ["Buss 4 er forsinket", "Plain string", "Omkjøring"]);
+});
+
+test("getDom: renders deviations above the departures", () => {
+    const ctx = makeInstance(def);
+    ctx.hasLoaded = true;
+    ctx.deviations = ["Omkjøring linje 4"];
+    const devBox = ctx.getDom().childNodes.find((c) => c.className === "skyss-deviations xsmall");
+    assert.ok(devBox, "deviation box is present");
+    assert.strictEqual(devBox.childNodes.length, 1);
+    assert.strictEqual(devBox.childNodes[0].childNodes[0].textContent, "Omkjøring linje 4");
+});
+
+test("getDom: no deviation box when showDeviations is false", () => {
+    const ctx = makeInstance(def, { showDeviations: false });
+    ctx.hasLoaded = true;
+    ctx.deviations = ["something"];
+    const devBox = ctx.getDom().childNodes.find((c) => c.className === "skyss-deviations xsmall");
+    assert.strictEqual(devBox, undefined);
 });
