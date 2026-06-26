@@ -1,6 +1,8 @@
 # MagicMirror² Module: Skyss
 
-'MMM-Skyss' is a module based on the Ruter equivalent made by Cato Antonsen for displaying public transport information for the Hordaland region in Norway on a [MagicMirror²](https://magicmirror.builders/). It's using data from Skyss.no. Skyss is a registered trademark of Hordaland County Councile (Hordaland Fylkeskommune) which is not affiliated with this product. Content from Skyss APIs may be copyrighted.
+[![CI](https://github.com/RozDm/MMM-Skyss/actions/workflows/ci.yml/badge.svg)](https://github.com/RozDm/MMM-Skyss/actions/workflows/ci.yml)
+
+'MMM-Skyss' is a module based on the Ruter equivalent made by Cato Antonsen for displaying public transport information for the Bergen / Vestland (formerly Hordaland) region in Norway on a [MagicMirror²](https://magicmirror.builders/). It uses data from Skyss.no. Skyss is a registered trademark of Vestland County Council (Vestland fylkeskommune, formerly Hordaland), which is not affiliated with this product. Content from Skyss APIs may be copyrighted.
 
 ![1](images/MMM-Skyss-1.png)
 ![2](images/MMM-Skyss-2.png)
@@ -227,7 +229,7 @@ Continuous integration runs all of the above (tests on Node 18/20/22, plus ESLin
 
 ## Translations
 
-This modules is translated to the following languages:
+This module is translated into the following languages:
 
 Language | Responsible
 ---|---
@@ -235,7 +237,7 @@ nb (Norwegian Bokmål) | Cato Antonsen
 nn (Norwegian Nynorsk) | Community
 en (English) | Cato Antonsen
 
-If you add other languages, please make a PR or drop me a line!
+If you add another language, please open a pull request.
 
 # Future enhancements
 

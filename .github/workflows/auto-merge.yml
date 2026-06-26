@@ -40,6 +40,15 @@ jobs:
                 core.info(`PR #${pr.number} head moved past ${sha} — skipping.`);
                 continue;
               }
+              // Public-repo safety: only auto-merge PRs from a branch in THIS
+              // repository (not a fork), opened by the owner or a collaborator.
+              // Fork / outside-contributor PRs require a manual review + merge.
+              const sameRepo = pr.head.repo && pr.head.repo.full_name === pr.base.repo.full_name;
+              const trusted = ["OWNER", "MEMBER", "COLLABORATOR"].includes(pr.author_association);
+              if (!sameRepo || !trusted) {
+                core.info(`PR #${pr.number} is external (sameRepo=${sameRepo}, association=${pr.author_association}) — skipping.`);
+                continue;
+              }
               try {
                 await github.rest.pulls.merge({
                   owner,
