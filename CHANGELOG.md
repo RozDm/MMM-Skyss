@@ -1,5 +1,9 @@
 # MMM-Skyss Change Log
 
+## [2.3.0] - 2026-06-26
+
+- Added a `showDeviations` option (default `true`): Skyss service messages / deviations from the API's top-level `Messages` field are shown above the departures. The message object shape is undocumented, so the text is extracted defensively from common field names and the raw `Messages` array is logged under `debug` to help refine it from a real disruption sample.
+
 ## [2.2.0] - 2026-06-26
 
 - New `walkingTime` option: departures leaving sooner than the configured number of minutes (the time needed to reach the stop) are hidden. Default `0` keeps the current behaviour. Implements the "filter departures too close to make" enhancement.

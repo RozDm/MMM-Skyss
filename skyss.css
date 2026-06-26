@@ -40,3 +40,11 @@ table.skyss thead {
 .rightalign {
   text-align: right;
 }
+
+.skyss-deviations {
+  margin-bottom: 4px;
+}
+
+.skyss-deviation {
+  color: rgb(231 149 35);
+}

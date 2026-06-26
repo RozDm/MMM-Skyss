@@ -29,6 +29,7 @@ const Skyss = {
         fade: true, // Set this to true to fade list from light to dark. (default is true)
         fadePoint: 0.25, // Start on 1/4th of the list.
         useRealtime: true, // Whether to use realtime data from Skyss
+        showDeviations: true, // Show Skyss service messages / deviations when present (default true)
         debug: false // Enable verbose debug logging
     },
 
@@ -53,6 +54,7 @@ const Skyss = {
         if (this.config.debug) console.log("[MMM-Skyss][DEBUG] Configuration:", this.config);
 
         this.journeys = [];
+        this.deviations = []; // Service messages / deviations from the last successful response
         this.hasLoaded = false; // Have we ever received a successful response?
         this.consecutiveErrors = 0; // Drives the exponential backoff after errors
 
@@ -84,6 +86,22 @@ const Skyss = {
     },
 
     getDom: function () {
+        var wrapper = document.createElement("div");
+
+        // Service messages / deviations (when enabled and present), shown above the
+        // departures so a disruption is visible even when nothing is running.
+        if (this.config.showDeviations && this.deviations && this.deviations.length > 0) {
+            var devBox = document.createElement("div");
+            devBox.className = "skyss-deviations xsmall";
+            for (var d = 0; d < this.deviations.length; d++) {
+                var devLine = document.createElement("div");
+                devLine.className = "skyss-deviation";
+                devLine.appendChild(document.createTextNode(this.deviations[d]));
+                devBox.appendChild(devLine);
+            }
+            wrapper.appendChild(devBox);
+        }
+
         if (this.journeys.length > 0) {
             var table = document.createElement("table");
             table.className = "skyss small";
@@ -115,15 +133,16 @@ const Skyss = {
             }
 
             table.appendChild(tbody);
-
-            return table;
+            wrapper.appendChild(table);
         } else {
-            var wrapper = document.createElement("div");
+            var message = document.createElement("div");
             // "Loading" until the first successful poll, then "no departures".
-            wrapper.innerHTML = this.translate(this.hasLoaded ? "NODEPARTURES" : "LOADING");
-            wrapper.className = "small dimmed";
-            return wrapper;
+            message.innerHTML = this.translate(this.hasLoaded ? "NODEPARTURES" : "LOADING");
+            message.className = "small dimmed";
+            wrapper.appendChild(message);
         }
+
+        return wrapper;
     },
 
     /**
@@ -398,6 +417,22 @@ const Skyss = {
                     platform: journey.Platform || ""
                 });
             }
+
+            // Service messages / deviations live in the top-level "Messages" array.
+            // The message object shape is undocumented, so pull text from the common
+            // field names defensively; the raw array is logged under debug so a real
+            // disruption sample can refine this.
+            if (self.config.debug) console.log("[MMM-Skyss][DEBUG] Messages:", JSON.stringify(departure.Messages));
+            self.deviations = (Array.isArray(departure.Messages) ? departure.Messages : [])
+                .map(function (m) {
+                    if (typeof m === "string") return m;
+                    if (m && typeof m === "object")
+                        return m.Text || m.Message || m.Title || m.Description || m.Body || m.Value || "";
+                    return "";
+                })
+                .filter(function (s) {
+                    return s && String(s).trim().length > 0;
+                });
 
             if (self.config.debug) console.log("[MMM-Skyss][DEBUG] Processed", allStopItems.length, "stop items");
             callback(null, allStopItems);

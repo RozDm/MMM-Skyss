@@ -88,6 +88,7 @@ function makeInstance(def, configOverrides) {
             maxReloadInterval: 300000,
             animationSpeed: 0,
             useRealtime: true,
+            showDeviations: true,
             fade: true,
             fadePoint: 0.25,
             showHeader: false,
@@ -100,6 +101,7 @@ function makeInstance(def, configOverrides) {
     ctx.name = "MMM-Skyss";
     ctx.identifier = "test_instance";
     ctx.journeys = [];
+    ctx.deviations = [];
     ctx.requests = {};
     ctx.requestSeq = 0;
     ctx.instanceId = "inst-" + Math.random().toString(36).slice(2, 8);
