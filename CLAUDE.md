@@ -1,6 +1,7 @@
 # CLAUDE.md
 
 Guidance for Claude Code (and other agents) working in this repository.
+Current status and next steps for a fresh session are in [`HANDOFF.md`](HANDOFF.md).
 
 ## What this is
 
