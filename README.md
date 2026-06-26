@@ -223,7 +223,7 @@ npm run format      # apply Prettier (use format:check to verify only)
 npm run typecheck   # tsc --checkJs via JSDoc / @ts-check
 ```
 
-Continuous integration runs all of the above (tests on Node 18/20/22, plus ESLint, stylelint, markdownlint, format-check, type-check and `npm audit`) via GitHub Actions on every push and pull request. A husky pre-commit hook runs lint-staged on changed files.
+Continuous integration runs all of the above (tests on Node 18/20/22, plus ESLint, stylelint, markdownlint, format-check, type-check and `npm audit`) via GitHub Actions on every push and pull request. A husky pre-commit hook runs lint-staged on changed files. Pull requests are auto-merged into `main` once CI passes — mark a PR as a draft to prevent it.
 
 ## Translations
 

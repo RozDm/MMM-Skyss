@@ -1,0 +1,54 @@
+name: Auto-merge
+
+# When the CI workflow finishes successfully for a pull request, merge that PR
+# into main. Tests stay the gate — nothing lands on main without CI passing.
+# Mark a pull request as a draft to stop it from being auto-merged.
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge the pull request whose CI passed
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const sha = run.head_sha;
+            const { owner, repo } = context.repo;
+            const { data: prs } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+              owner,
+              repo,
+              commit_sha: sha
+            });
+            for (const pr of prs) {
+              if (pr.state !== "open") continue;
+              if (pr.draft) {
+                core.info(`PR #${pr.number} is a draft — skipping.`);
+                continue;
+              }
+              if (pr.head.sha !== sha) {
+                core.info(`PR #${pr.number} head moved past ${sha} — skipping.`);
+                continue;
+              }
+              try {
+                await github.rest.pulls.merge({
+                  owner,
+                  repo,
+                  pull_number: pr.number,
+                  merge_method: "merge"
+                });
+                core.info(`Merged PR #${pr.number}.`);
+              } catch (e) {
+                core.warning(`Could not merge PR #${pr.number}: ${e.message}`);
+              }
+            }
