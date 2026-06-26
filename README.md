@@ -1,6 +1,6 @@
 # MagicMirror² Module: Skyss
 
-[![CI](https://github.com/RozDm/MMM-Skyss/actions/workflows/ci.yml/badge.svg)](https://github.com/RozDm/MMM-Skyss/actions/workflows/ci.yml)
+[![CI](https://github.com/RozDm/MMM-Skyss/actions/workflows/ci.yml/badge.svg)](https://github.com/RozDm/MMM-Skyss/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 'MMM-Skyss' is a module based on the Ruter equivalent made by Cato Antonsen for displaying public transport information for the Bergen / Vestland (formerly Hordaland) region in Norway on a [MagicMirror²](https://magicmirror.builders/). It uses data from Skyss.no. Skyss is a registered trademark of Vestland County Council (Vestland fylkeskommune, formerly Hordaland), which is not affiliated with this product. Content from Skyss APIs may be copyrighted.
 
