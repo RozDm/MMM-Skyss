@@ -1,5 +1,9 @@
 # MMM-Skyss Change Log
 
+## [2.3.1] - 2026-06-26
+
+- Robustness: the self-scheduling poll loop now has a watchdog. If a socket response between the node helper and the frontend is ever lost, the next poll is still scheduled instead of polling stalling permanently (which would freeze the board on stale data until a restart). The backoff calculation was extracted into `nextBackoff()`.
+
 ## [2.3.0] - 2026-06-26
 
 - Added a `showDeviations` option (default `true`): Skyss service messages / deviations from the API's top-level `Messages` field are shown above the departures. The message object shape is undocumented, so the text is extracted defensively from common field names and the raw `Messages` array is logged under `debug` to help refine it from a real disruption sample.

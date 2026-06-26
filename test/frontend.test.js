@@ -221,6 +221,25 @@ test("getDom: renders a tbody with one row per journey", () => {
     assert.strictEqual(tbody.childNodes.length, 1);
 });
 
+test("poll: ignores a late/duplicate response (watchdog settled guard)", () => {
+    const ctx = makeInstance(def);
+    let cb;
+    ctx.getStopInfo = (stops, callback) => {
+        cb = callback;
+    };
+    ctx.poll();
+    // First response is handled normally.
+    cb(null, [{ lineName: "A", time: { Timestamp: new Date(now + 5 * 60000).toISOString() } }]);
+    assert.strictEqual(ctx.journeys.length, 1);
+    assert.strictEqual(ctx._scheduled, ctx.config.serviceReloadInterval);
+    // A second (late) response for the same poll must be ignored — no reschedule,
+    // no error-counter bump.
+    ctx._scheduled = "unchanged";
+    cb("boom", []);
+    assert.strictEqual(ctx._scheduled, "unchanged");
+    assert.strictEqual(ctx.consecutiveErrors, 0);
+});
+
 // ---- deviations ---------------------------------------------------------
 
 test("getStopInfo: extracts deviation text from the Messages array", () => {

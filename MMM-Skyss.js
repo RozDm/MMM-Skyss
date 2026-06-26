@@ -157,23 +157,47 @@ const Skyss = {
         }, delay);
     },
 
+    /**
+     * Next poll delay: the base interval, or exponential backoff (capped at
+     * `maxReloadInterval`) while consecutive errors persist.
+     * @returns {number} milliseconds
+     */
+    nextBackoff: function () {
+        return Math.min(
+            this.config.serviceReloadInterval * Math.pow(2, this.consecutiveErrors),
+            this.config.maxReloadInterval
+        );
+    },
+
     /** Run one poll cycle, then schedule the next (with exponential backoff on error). */
     poll: function () {
         var self = this;
         if (this.config.debug) console.log("[MMM-Skyss][DEBUG] Starting poll for departure data");
 
+        // The node helper always answers (it has its own 15s timeout), but guard the
+        // self-scheduling chain: if a socket response is ever lost, this watchdog
+        // still schedules the next poll instead of letting polling stall forever.
+        var settled = false;
+        var watchdog = setTimeout(function () {
+            if (settled) return;
+            settled = true;
+            self.consecutiveErrors++;
+            if (self.config.debug) console.log("[MMM-Skyss][DEBUG] Poll got no response in time; rescheduling");
+            self.scheduleNextPoll(self.nextBackoff());
+        }, self.config.serviceReloadInterval + 20000);
+
         this.getStopInfo(this.config.stops, function (err, result) {
+            if (settled) return; // a late response after the watchdog already fired
+            settled = true;
+            clearTimeout(watchdog);
+
             if (err) {
                 // Keep the last good data on screen and back off the next poll
                 // (exponential, capped at maxReloadInterval).
                 self.consecutiveErrors++;
-                var backoff = Math.min(
-                    self.config.serviceReloadInterval * Math.pow(2, self.consecutiveErrors),
-                    self.config.maxReloadInterval
-                );
                 if (self.config.debug)
-                    console.log("[MMM-Skyss][DEBUG] Poll error (", err, "); next poll in", backoff, "ms");
-                self.scheduleNextPoll(backoff);
+                    console.log("[MMM-Skyss][DEBUG] Poll error (", err, "); next poll in", self.nextBackoff(), "ms");
+                self.scheduleNextPoll(self.nextBackoff());
                 return;
             }
 
