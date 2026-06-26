@@ -7,7 +7,7 @@
 ![1](images/MMM-Skyss-1.png)
 ![2](images/MMM-Skyss-2.png)
 
-Current version is 2.3.1. See [changelog](CHANGELOG.md "Version history") for version history.
+Current version is 2.3.2. See [changelog](CHANGELOG.md "Version history") for version history.
 
 ## Installation
 
@@ -63,7 +63,7 @@ walkingTime | Minutes needed to reach the stop; departures leaving sooner than t
 showHeader | Set this to true to show header above the journeys | false
 showStopName | Show the name of each stop (the name is fetched automatically from the Skyss API) | false
 showPlatform | Set this to true to get the names of the platforms. Set this to true to check the name of the platform if you need to filter  | false
-humanizeTimeTreshold | If time to next journey is below this value, it will be displayed as "x minutes" instead of time. The correctly spelled `humanizeTimeThreshold` is accepted as an alias | 15
+humanizeTimeTreshold | If time to next journey is below this value, it will be displayed as "x minutes" instead of time. Set to `0` to disable humanization entirely — every departure then shows the clock time, including ones due now (no "Now"/"x minutes"). The correctly spelled `humanizeTimeThreshold` is accepted as an alias | 15
 serviceReloadInterval | Refresh rate in MS for how often we call Skyss's web service. NB! Don't set it too low! | 30000
 maxReloadInterval | Upper bound (MS) for the exponential backoff used after API errors. On failures the last good data stays on screen and the poll interval grows up to this value | 300000
 animationSpeed | How fast the animation changes when updating mirror - in milliseconds | 0  

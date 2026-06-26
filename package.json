@@ -1,6 +1,6 @@
 {
   "name": "mmm-skyss",
-  "version": "2.3.1",
+  "version": "2.3.2",
   "description": "MagicMirror² module showing realtime public transport departures for the Hordaland/Bergen region (Skyss).",
   "main": "MMM-Skyss.js",
   "scripts": {

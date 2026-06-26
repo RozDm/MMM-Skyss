@@ -174,23 +174,10 @@ const Skyss = {
         var self = this;
         if (this.config.debug) console.log("[MMM-Skyss][DEBUG] Starting poll for departure data");
 
-        // The node helper always answers (it has its own 15s timeout), but guard the
-        // self-scheduling chain: if a socket response is ever lost, this watchdog
-        // still schedules the next poll instead of letting polling stall forever.
-        var settled = false;
-        var watchdog = setTimeout(function () {
-            if (settled) return;
-            settled = true;
-            self.consecutiveErrors++;
-            if (self.config.debug) console.log("[MMM-Skyss][DEBUG] Poll got no response in time; rescheduling");
-            self.scheduleNextPoll(self.nextBackoff());
-        }, self.config.serviceReloadInterval + 20000);
-
+        // A lost response can never stall the self-scheduling chain: every request
+        // has a frontend timeout (see HttpClient) that surfaces an error, so this
+        // callback always runs and always schedules the next poll.
         this.getStopInfo(this.config.stops, function (err, result) {
-            if (settled) return; // a late response after the watchdog already fired
-            settled = true;
-            clearTimeout(watchdog);
-
             if (err) {
                 // Keep the last good data on screen and back off the next poll
                 // (exponential, capped at maxReloadInterval).
@@ -238,7 +225,21 @@ const Skyss = {
         var HttpClient = function () {
             this.get = function (requestBody, requestCallback) {
                 var id = self.instanceId + ":" + ++self.requestSeq;
-                self.requests[id] = requestCallback;
+                // Safety net: if the node helper's response is ever lost, drop the
+                // pending entry (so the request map can't leak) and surface an error
+                // so polling reschedules. Must exceed the helper's own 15s timeout.
+                // The timer is cleared in socketNotificationReceived once a response
+                // arrives, and unref()'d so a pending safety-net timer never by
+                // itself keeps the runtime alive (unref is a no-op in the browser,
+                // where setTimeout returns a number).
+                var timer = setTimeout(function () {
+                    if (!self.requests[id]) return;
+                    delete self.requests[id];
+                    if (self.config.debug) console.log("[MMM-Skyss][DEBUG] No response for", id, "- timing out");
+                    requestCallback("request timed out", null);
+                }, 30000);
+                if (timer && typeof timer.unref === "function") timer.unref();
+                self.requests[id] = { callback: requestCallback, timer: timer };
                 self.sendSocketNotification("getstop", { id: id, body: requestBody, debug: self.config.debug });
             };
         };
@@ -258,9 +259,8 @@ const Skyss = {
             if (regexInMinutes.test(displayTime)) {
                 var inMinutes = parseInt(displayTime.match(regexInMinutes)[1], 10);
 
-                // The Skyss app rounds the displayed minutes down, so a board reading
-                // "x min" is really up to x+1 minutes away. Adding 1 matches the app.
-                realTime = moment().add(inMinutes + 1, "minutes");
+                // "x min" is the realtime estimate of whole minutes until departure.
+                realTime = moment().add(inMinutes, "minutes");
 
                 //Time format is "HH:mm".
             } else if (regexLocalTimeStamp.test(displayTime)) {
@@ -296,7 +296,7 @@ const Skyss = {
                 const item = items[i];
 
                 // Support alternative grouped config form: { stopGroupId: "32383", stopIds: ["55869", "55870"] }
-                if (item.stopIds && item.stopGroupId) {
+                if (Array.isArray(item.stopIds) && item.stopGroupId) {
                     const groupId = normalizeId(item.stopGroupId, "StopPlace");
                     if (!groupId) {
                         console.warn("[MMM-Skyss] Skipping grouped entry without valid stopGroupId", item);
@@ -449,13 +449,20 @@ const Skyss = {
             if (self.config.debug) console.log("[MMM-Skyss][DEBUG] Messages:", JSON.stringify(departure.Messages));
             self.deviations = (Array.isArray(departure.Messages) ? departure.Messages : [])
                 .map(function (m) {
-                    if (typeof m === "string") return m;
-                    if (m && typeof m === "object")
-                        return m.Text || m.Message || m.Title || m.Description || m.Body || m.Value || "";
+                    if (typeof m === "string") return m.trim();
+                    if (m && typeof m === "object") {
+                        // The message shape is undocumented and a field may itself be a
+                        // localised object, so only accept a non-empty *string* field
+                        // (otherwise we would render "[object Object]").
+                        var fields = [m.Text, m.Message, m.Title, m.Description, m.Body, m.Value];
+                        for (var i = 0; i < fields.length; i++) {
+                            if (typeof fields[i] === "string" && fields[i].trim()) return fields[i].trim();
+                        }
+                    }
                     return "";
                 })
                 .filter(function (s) {
-                    return s && String(s).trim().length > 0;
+                    return s.length > 0;
                 });
 
             if (self.config.debug) console.log("[MMM-Skyss][DEBUG] Processed", allStopItems.length, "stop items");
@@ -465,19 +472,15 @@ const Skyss = {
 
     getTableHeaderRow: function () {
         var thLine = document.createElement("th");
-        thLine.className = "";
         thLine.appendChild(document.createTextNode(this.translate("LINEHEADER")));
 
         var thDestination = document.createElement("th");
-        thDestination.className = "";
         thDestination.appendChild(document.createTextNode(this.translate("DESTINATIONHEADER")));
 
         var thPlatform = document.createElement("th");
-        thPlatform.className = "";
         thPlatform.appendChild(document.createTextNode(this.translate("PLATFORMHEADER")));
 
         var thStopName = document.createElement("th");
-        thStopName.className = "";
         thStopName.appendChild(document.createTextNode(this.translate("STOPNAMEHEADER")));
 
         var thTime = document.createElement("th");
@@ -605,20 +608,19 @@ const Skyss = {
 
         // The notification is broadcast to every MMM-Skyss instance, so only act on
         // responses for a request id THIS instance issued.
-        var requestCallback = self.requests[payload.id];
-        if (!requestCallback) return;
+        var request = self.requests[payload.id];
+        if (!request) return;
         delete self.requests[payload.id];
+        clearTimeout(request.timer); // response arrived; cancel the safety-net timeout
 
         if (payload.err) {
             if (this.config.debug) console.log("[MMM-Skyss][DEBUG] Socket notification error:", payload.err);
-            requestCallback(payload.err, null);
+            request.callback(payload.err, null);
         } else {
             if (this.config.debug) console.log("[MMM-Skyss][DEBUG] Socket notification received successfully");
-            requestCallback(null, payload.response);
+            request.callback(null, payload.response);
         }
-    },
-
-    requests: {}
+    }
 };
 
 Module.register("MMM-Skyss", Skyss);
