@@ -1,5 +1,10 @@
 # MMM-Skyss Change Log
 
+## [2.1.1] - 2026-06-26
+- Tooling/standardization: added ESLint (flat config) + Prettier + EditorConfig and an npm `lint`/`format`/`typecheck` script set. CI now also runs lint, format-check and a JSDoc `// @ts-check` type-check (via TypeScript) alongside the tests. All of this is `devDependencies` only — the module still has zero runtime dependencies and needs no install to run.
+- Enabled `// @ts-check` with JSDoc annotations on both source files (with ambient declarations for the MagicMirror-provided globals) and fixed the few things it surfaced: removed a useless regex escape, used strict equality and `Date.getTime()` for time arithmetic. No behavioural change.
+- Fixed a stale `showStopName` code comment (the per-stop `name` override was removed back in 2.0.1).
+
 ## [2.1.0] - 2026-06-26
 - Multiple module instances are now isolated: each request is tagged with a unique id and tracked in a per-instance map, so the broadcast socket response only resolves the instance that issued it (the previous shared FIFO queue could cross responses between instances).
 - Errors no longer wipe the board. The last good departures stay on screen and the next poll backs off exponentially, capped by the new `maxReloadInterval` option (default 5 minutes). A successful but empty response now shows a "No departures" message; "Loading…" is only shown before the first successful poll.

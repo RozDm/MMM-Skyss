@@ -20,7 +20,10 @@ function fakeHttps() {
             req.destroyed = false;
             req.write = () => {};
             req.end = () => {};
-            req.destroy = (e) => { req.destroyed = true; if (e) req.emit("error", e); };
+            req.destroy = (e) => {
+                req.destroyed = true;
+                if (e) req.emit("error", e);
+            };
             req._respond = responseHandler; // call to simulate the response arriving
             req.options = options;
             lastReq = req;

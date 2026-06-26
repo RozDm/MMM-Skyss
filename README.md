@@ -180,11 +180,18 @@ Example:
 - A successful response with no upcoming departures shows **"No departures"**. "Loading…" is only shown before the very first successful response.
 
 ## Development
-This module has no runtime dependencies. There is a small test suite built on Node's built-in test runner (Node 18+):
+The module itself has **no runtime dependencies** — end users never run `npm install`. The development tooling (ESLint, Prettier, and TypeScript for JSDoc `// @ts-check`) lives in `devDependencies`, so contributors install it once:
 ```bash
-npm test
+npm install
 ```
-Continuous integration (syntax check, tests on Node 18/20/22, and `npm audit`) runs via GitHub Actions on every push and pull request.
+Useful scripts:
+```bash
+npm test            # unit tests (Node's built-in test runner, Node 18+)
+npm run lint        # ESLint
+npm run format      # apply Prettier (use format:check to verify only)
+npm run typecheck   # tsc --checkJs via JSDoc / @ts-check
+```
+Continuous integration runs all of the above (tests on Node 18/20/22, plus lint, format-check, type-check and `npm audit`) via GitHub Actions on every push and pull request.
 
 ## Translations
 
