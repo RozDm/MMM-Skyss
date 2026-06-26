@@ -1,7 +1,7 @@
 /* Magic Mirror
- * Module: Ruter
+ * Module: MMM-Skyss
  *
- * By Cato Antonsen (https://github.com/CatoAntonsen)
+ * Based on MMM-Ruter by Cato Antonsen (https://github.com/CatoAntonsen)
  * MIT Licensed.
  */
 
@@ -9,6 +9,7 @@ Module.register("MMM-Skyss",{
 
     // Default module config.
     defaults: {
+        stops: [],                     // Array of stops to display (see README). Empty = nothing to show
         timeFormat: null,              // This is set automatically based on global config
         showHeader: false,             // Set this to true to show header above the journeys (default is false)
         showPlatform: false,           // Set this to true to get the names of the platforms (default is false)
@@ -43,7 +44,7 @@ Module.register("MMM-Skyss",{
         if (this.config.debug) console.log("[MMM-Skyss][DEBUG] Configuration:", this.config);
 
         this.journeys = [];
-        this.previousJourneys = [];
+        this.requests = [];   // Per-instance request queue (do not share the prototype array between instances)
         var self = this;
 
          // Set locale and time format based on global config
@@ -73,6 +74,8 @@ Module.register("MMM-Skyss",{
                 table.appendChild(this.getTableHeaderRow());
             }
 
+            var tbody = document.createElement("tbody");
+
             for(var i = 0; i < this.journeys.length; i++) {
 
                 var journey = this.journeys[i];
@@ -91,8 +94,10 @@ Module.register("MMM-Skyss",{
                     }
                 }
 
-                table.appendChild(tr);
+                tbody.appendChild(tr);
             }
+
+            table.appendChild(tbody);
 
             return table;
         } else {
@@ -141,7 +146,7 @@ Module.register("MMM-Skyss",{
                     console.log("[MMM-Skyss][DEBUG] First journey:", self.journeys[0]);
                 }
 
-                self.updateDom();
+                self.updateDom(self.config.animationSpeed);
             }
         });
     },
@@ -164,7 +169,7 @@ Module.register("MMM-Skyss",{
         
             //Time format is "x min"
             if (regexInMinutes.test(displayTime)) {
-                inMinutes = parseInt(displayTime.match(regexInMinutes)[1]);
+                var inMinutes = parseInt(displayTime.match(regexInMinutes)[1], 10);
             
                 // Adding 1 gives same result as skyss app -.-
                 realTime = moment().add(inMinutes+1, 'minutes');
@@ -191,8 +196,11 @@ Module.register("MMM-Skyss",{
 
             const stopGroupsMap = {}; // key = groupId
 
-            for (let i = 0; i < stopItems.length; i++) {
-                const item = stopItems[i];
+            // Guard against a missing/invalid `stops` config (undefined, null, non-array)
+            const items = Array.isArray(stopItems) ? stopItems : [];
+
+            for (let i = 0; i < items.length; i++) {
+                const item = items[i];
 
                 // Support alternative grouped config form: { stopGroupId: "32383", stopIds: ["55869", "55870"] }
                 if (item.stopIds && item.stopGroupId) {
@@ -252,9 +260,16 @@ Module.register("MMM-Skyss",{
             return { stopGroups: filtered };
         };
 
+        var requestBody = buildRequestBody();
+        if (!requestBody.stopGroups || requestBody.stopGroups.length === 0) {
+            if (self.config.debug) console.log("[MMM-Skyss][DEBUG] No valid stops configured; skipping API call.");
+            callback(null, []);
+            return;
+        }
+
         var client = new HttpClient();
 
-        client.get(buildRequestBody(), function(stopResponse) {
+        client.get(requestBody, function(stopResponse) {
             if (self.config.debug) console.log("[MMM-Skyss][DEBUG] Parsing API response");
 
             var departure;
@@ -335,14 +350,17 @@ Module.register("MMM-Skyss",{
         thTime.className = "time";
         thTime.appendChild(document.createTextNode(this.translate("TIMEHEADER")));
 
+        var tr = document.createElement("tr");
+        tr.appendChild(document.createElement("th"));
+        tr.appendChild(thLine);
+        tr.appendChild(thDestination);
+        if (this.config.showStopName) { tr.appendChild(thStopName); }
+        if (this.config.showPlatform) { tr.appendChild(thPlatform); }
+        tr.appendChild(thTime);
+
         var thead = document.createElement("thead");
-        thead.addClass = "xsmall dimmed";
-        thead.appendChild(document.createElement("th"));
-        thead.appendChild(thLine);
-        thead.appendChild(thDestination);
-        if (this.config.showStopName) { thead.appendChild(thStopName); }
-        if (this.config.showPlatform) { thead.appendChild(thPlatform); }
-        thead.appendChild(thTime);
+        thead.className = "xsmall dimmed";
+        thead.appendChild(tr);
 
         return thead;
     },
@@ -416,18 +434,19 @@ Module.register("MMM-Skyss",{
         var now = new Date();
         var tti = new Date(t);
         var diff = tti - now;
-        var min = Math.floor(diff/60000);
+        var min = Math.floor(diff / 60000);
 
-        if (this.config.humanizeTimeTreshold != 0) {
-            if (min == 0) {
+        if (this.config.humanizeTimeTreshold !== 0) {
+            if (min <= 0) {
                 return this.translate("NOW");
-            } else if (min == 1) {
+            } else if (min === 1) {
                 return this.translate("1MIN");
             } else if (min < this.config.humanizeTimeTreshold) {
                 return min + " " + this.translate("MINUTES");
             }
         }
-        return tti.getHours() + ":" + ("0" + tti.getMinutes()).slice(-2);
+        // Honour the 12/24h format derived from the global config in start()
+        return moment(tti).format(this.config.timeFormat);
     },
 
     socketNotificationReceived: function(notification, payload) {
