@@ -43,7 +43,7 @@ npm run typecheck   # tsc --checkJs via JSDoc / @ts-check
 ```
 
 CI (`.github/workflows/ci.yml`) runs all of these (tests on Node 18/20/22). Keep
-it green: a green pull request is auto-merged into `main`
+it green: a green pull request is auto-merged into `main` and its branch deleted
 (`.github/workflows/auto-merge.yml`) — mark a PR as a **draft** to hold it.
 Fork / outside-contributor PRs are not auto-merged.
 
@@ -70,8 +70,10 @@ Fork / outside-contributor PRs are not auto-merged.
 - The Skyss endpoint is **POST-only**; opening it in a browser (a GET) returns a
   `TEMPORARY_ERROR`. It is also **not reachable from CI / sandboxes**
   (egress-blocked), so the module can only be verified live on a real mirror.
-- **Deviations** (route disruptions) are not implemented — it needs the real v3
-  response field names; capture a sample with `debug: true` first.
+- **Deviations** (route disruptions) come from the response's top-level `Messages`
+  array and are rendered best-effort (`showDeviations`, default on); the message
+  object shape is undocumented, so text is pulled from common field names — refine
+  it from a real sample captured with `debug: true` (the raw array is logged then).
 - `humanizeTimeTreshold` is misspelled but kept for config back-compat;
   `humanizeTimeThreshold` is accepted as an alias.
 
