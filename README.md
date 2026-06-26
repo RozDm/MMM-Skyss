@@ -187,6 +187,7 @@ Set `debug: true` in the module config to print:
 - API response status (in node helper)
 - Number of passing times returned
 - Realtime vs scheduled selection per journey
+- Raw `Messages` array (to refine deviation parsing)
 
 Example:
 
@@ -240,6 +241,8 @@ en (English) | Cato Antonsen
 
 If you add another language, please open a pull request.
 
-# Future enhancements
+# Deviations
 
-Deviations are now shown best-effort from the API's top-level `Messages` field (`showDeviations`, default on). The message object shape is undocumented, so the text is pulled from common field names. If your live board shows a disruption that this module does not, capture the response with `debug: true` and open an issue with the `Messages` JSON so the extraction can be refined.
+Service messages / deviations from Skyss (the response's top-level `Messages` array) are shown above the departures, so a disruption is visible even when nothing is running. Disable with `showDeviations: false`.
+
+The `Messages` object shape is undocumented, so the text is extracted best-effort from common field names. If your live board shows a disruption that this module does not, capture the response with `debug: true` and open an issue with the `Messages` JSON so the extraction can be refined.
