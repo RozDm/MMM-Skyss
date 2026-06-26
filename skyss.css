@@ -1,0 +1,39 @@
+/* MMM-Ruter */
+
+table.ruter {
+  width: 100%;
+  border: 1px;
+  text-align: left;
+}
+table.ruter td, table.ruter th {
+  padding: 0 6px;
+}
+
+table.ruter thead {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.733);
+}
+/* table.ruter td {
+  border-left: 1px solid rgba(255, 255, 255, 0.685);
+} */
+.ruter .line {
+	padding-right: 5px;
+}
+
+.ruter .title {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.ruter .time {
+  padding-left: 30px;
+  text-align: right;
+}
+
+.sanntid {
+  color:rgb(231, 149, 35);
+  font-weight: bold;
+}
+
+.rightalign {
+  text-align: right;
+}
