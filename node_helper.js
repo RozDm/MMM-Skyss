@@ -29,16 +29,30 @@ module.exports = NodeHelper.create({
             }
         };
 
+        // Safety cap so a misbehaving/compromised endpoint can't exhaust memory
+        const MAX_RESPONSE_BYTES = 2 * 1024 * 1024; // 2 MB
+
         var req = https.request(options, (res) => {
             if (debug) console.log("[MMM-Skyss] API response status:", res.statusCode);
 
             res.setEncoding("utf8");
             var data = "";
+            var size = 0;
+            var aborted = false;
             res.on("data", (chunk) => {
+                if (aborted) return;
+                size += Buffer.byteLength(chunk);
+                if (size > MAX_RESPONSE_BYTES) {
+                    aborted = true;
+                    console.error("[MMM-Skyss] API response exceeded size limit, aborting");
+                    req.destroy(new Error("Response too large"));
+                    return;
+                }
                 data = data.concat(chunk);
             });
 
             res.on("end", () => {
+                if (aborted) return;
                 if (debug) {
                     console.log("[MMM-Skyss] API response received, data length:", data.length);
                     console.log("[MMM-Skyss] Response preview:", data.substring(0, 200) + "...");
