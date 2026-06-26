@@ -1,3 +1,4 @@
+// @ts-check
 /* Magic Mirror
  * Module: MMM-Skyss
  *
@@ -5,48 +6,55 @@
  * MIT Licensed.
  */
 
-Module.register("MMM-Skyss",{
-
+/**
+ * MagicMirror module definition. Typed loosely as a string-keyed record because
+ * MagicMirror injects many members at runtime (translate, sendSocketNotification,
+ * updateDom, identifier, name, ...) that are not declared on this object.
+ * @type {Record<string, any>}
+ */
+const Skyss = {
     // Default module config.
     defaults: {
-        stops: [],                     // Array of stops to display (see README). Empty = nothing to show
-        timeFormat: null,              // This is set automatically based on global config
-        showHeader: false,             // Set this to true to show header above the journeys (default is false)
-        showPlatform: false,           // Set this to true to get the names of the platforms (default is false)
-        showStopName: false,           // Show the name of the stop (you have to configure 'name' for each stop)
-        maxItems: 5,                   // Number of journeys to display (default is 5)
-        humanizeTimeTreshold: 15,      // If time to next journey is below this value, it will be displayed as "x minutes" instead of time (default is 15 minutes)
-        serviceReloadInterval: 30000,  // Refresh rate in MS for how often we call Skyss' web service. NB! Don't set it too low! (default is 30 seconds)
-        maxReloadInterval: 300000,     // Upper bound for the exponential backoff applied after API errors (default is 5 minutes)
-        animationSpeed: 0,             // How fast the animation changes when updating mirror (default is 0 second)
-        fade: true,                    // Set this to true to fade list from light to dark. (default is true)
-        fadePoint: 0.25,               // Start on 1/4th of the list.
-        useRealtime: true,             // Whether to use realtime data from Skyss
-        debug: false                   // Enable verbose debug logging
+        stops: [], // Array of stops to display (see README). Empty = nothing to show
+        timeFormat: null, // This is set automatically based on global config
+        showHeader: false, // Set this to true to show header above the journeys (default is false)
+        showPlatform: false, // Set this to true to get the names of the platforms (default is false)
+        showStopName: false, // Show the stop name (fetched automatically from the Skyss API)
+        maxItems: 5, // Number of journeys to display (default is 5)
+        walkingTime: 0, // Minutes needed to reach the stop; departures leaving sooner are hidden (0 = show all)
+        humanizeTimeTreshold: 15, // If time to next journey is below this value, it will be displayed as "x minutes" instead of time (default is 15 minutes)
+        serviceReloadInterval: 30000, // Refresh rate in MS for how often we call Skyss' web service. NB! Don't set it too low! (default is 30 seconds)
+        maxReloadInterval: 300000, // Upper bound for the exponential backoff applied after API errors (default is 5 minutes)
+        animationSpeed: 0, // How fast the animation changes when updating mirror (default is 0 second)
+        fade: true, // Set this to true to fade list from light to dark. (default is true)
+        fadePoint: 0.25, // Start on 1/4th of the list.
+        useRealtime: true, // Whether to use realtime data from Skyss
+        debug: false // Enable verbose debug logging
     },
 
     getStyles: function () {
         return ["skyss.css"];
     },
 
-    getScripts: function() {
+    getScripts: function () {
         return [];
     },
 
-    getTranslations: function() {
+    getTranslations: function () {
         return {
             en: "translations/en.json",
-            nb: "translations/nb.json"
-        }
+            nb: "translations/nb.json",
+            nn: "translations/nn.json"
+        };
     },
 
-    start: function() {
+    start: function () {
         console.log(this.translate("STARTINGMODULE") + ": " + this.name); // always shown
         if (this.config.debug) console.log("[MMM-Skyss][DEBUG] Configuration:", this.config);
 
         this.journeys = [];
-        this.hasLoaded = false;       // Have we ever received a successful response?
-        this.consecutiveErrors = 0;   // Drives the exponential backoff after errors
+        this.hasLoaded = false; // Have we ever received a successful response?
+        this.consecutiveErrors = 0; // Drives the exponential backoff after errors
 
         // Per-instance request map keyed by a unique id. Every MMM-Skyss instance
         // receives the broadcast "getstop" notification, so each request is tagged
@@ -55,7 +63,7 @@ Module.register("MMM-Skyss",{
         this.requestSeq = 0;
         this.instanceId = (this.identifier || "skyss") + "-" + Math.random().toString(36).slice(2, 10);
 
-         // Set locale and time format based on global config
+        // Set locale and time format based on global config
         if (config.timeFormat === 24) {
             this.config.timeFormat = "HH:mm";
         } else {
@@ -75,9 +83,8 @@ Module.register("MMM-Skyss",{
         this.scheduleNextPoll(0);
     },
 
-    getDom: function() {
+    getDom: function () {
         if (this.journeys.length > 0) {
-
             var table = document.createElement("table");
             table.className = "skyss small";
 
@@ -87,8 +94,7 @@ Module.register("MMM-Skyss",{
 
             var tbody = document.createElement("tbody");
 
-            for(var i = 0; i < this.journeys.length; i++) {
-
+            for (var i = 0; i < this.journeys.length; i++) {
                 var journey = this.journeys[i];
                 var tr = this.getTableRow(journey);
 
@@ -101,7 +107,7 @@ Module.register("MMM-Skyss",{
                     var steps = this.journeys.length - startingPoint;
                     if (i >= startingPoint) {
                         var currentStep = i - startingPoint;
-                        tr.style.opacity = 1 - (1 / steps * currentStep);
+                        tr.style.opacity = 1 - (1 / steps) * currentStep;
                     }
                 }
 
@@ -118,20 +124,26 @@ Module.register("MMM-Skyss",{
             wrapper.className = "small dimmed";
             return wrapper;
         }
-
     },
 
-    scheduleNextPoll: function(delay) {
+    /**
+     * Schedule the next poll, replacing any pending one.
+     * @param {number} delay milliseconds until the next poll
+     */
+    scheduleNextPoll: function (delay) {
         var self = this;
         clearTimeout(this.pollTimer);
-        this.pollTimer = setTimeout(function() { self.poll(); }, delay);
+        this.pollTimer = setTimeout(function () {
+            self.poll();
+        }, delay);
     },
 
-    poll: function() {
+    /** Run one poll cycle, then schedule the next (with exponential backoff on error). */
+    poll: function () {
         var self = this;
         if (this.config.debug) console.log("[MMM-Skyss][DEBUG] Starting poll for departure data");
 
-        this.getStopInfo(this.config.stops, function(err, result) {
+        this.getStopInfo(this.config.stops, function (err, result) {
             if (err) {
                 // Keep the last good data on screen and back off the next poll
                 // (exponential, capped at maxReloadInterval).
@@ -140,7 +152,8 @@ Module.register("MMM-Skyss",{
                     self.config.serviceReloadInterval * Math.pow(2, self.consecutiveErrors),
                     self.config.maxReloadInterval
                 );
-                if (self.config.debug) console.log("[MMM-Skyss][DEBUG] Poll error (", err, "); next poll in", backoff, "ms");
+                if (self.config.debug)
+                    console.log("[MMM-Skyss][DEBUG] Poll error (", err, "); next poll in", backoff, "ms");
                 self.scheduleNextPoll(backoff);
                 return;
             }
@@ -149,9 +162,18 @@ Module.register("MMM-Skyss",{
             self.hasLoaded = true;
 
             var allJourneys = (result || []).slice();
-            allJourneys.sort(function(a, b) {
-                return new Date(a.time.Timestamp) - new Date(b.time.Timestamp);
+            allJourneys.sort(function (a, b) {
+                return new Date(a.time.Timestamp).getTime() - new Date(b.time.Timestamp).getTime();
             });
+
+            // Hide departures leaving too soon to walk to (walkingTime minutes).
+            if (self.config.walkingTime > 0) {
+                var nowMs = Date.now();
+                allJourneys = allJourneys.filter(function (j) {
+                    return (new Date(j.time.Timestamp).getTime() - nowMs) / 60000 >= self.config.walkingTime;
+                });
+            }
+
             self.journeys = allJourneys.slice(0, self.config.maxItems);
 
             if (self.config.debug) console.log("[MMM-Skyss][DEBUG] Displaying", self.journeys.length, "journeys");
@@ -161,49 +183,65 @@ Module.register("MMM-Skyss",{
         });
     },
 
-    getStopInfo: function(stopItems, callback) {
+    /**
+     * Fetch and normalise departures for the configured stops, then hand the
+     * resulting view-model array to the callback.
+     * @param {Array<Object>} stopItems the `stops` config array
+     * @param {(err: any, items: Array<Object>) => void} callback
+     */
+    getStopInfo: function (stopItems, callback) {
         var self = this;
 
-        var HttpClient = function() {
-            this.get = function(requestBody, requestCallback) {
-                var id = self.instanceId + ":" + (++self.requestSeq);
+        var HttpClient = function () {
+            this.get = function (requestBody, requestCallback) {
+                var id = self.instanceId + ":" + ++self.requestSeq;
                 self.requests[id] = requestCallback;
                 self.sendSocketNotification("getstop", { id: id, body: requestBody, debug: self.config.debug });
-            }
-        }
-    
+            };
+        };
+
         //DisplayTime contains realtime-information. Formatted as "x min"(remaining time), or "HH:mm"
-        var processSkyssDisplaytime = function(displayTime) {
+        /**
+         * Parse Skyss' realtime "DisplayTime" ("x min" or "HH:mm") into a moment.
+         * @param {string} displayTime
+         * @returns {any} a moment instance, or undefined if unrecognised
+         */
+        var processSkyssDisplaytime = function (displayTime) {
             var realTime;
-            var regexInMinutes = new RegExp('([0-9]+) min');
-            var regexLocalTimeStamp = new RegExp('[0-9]{2}\:[0-9]{2}');
-        
+            var regexInMinutes = new RegExp("([0-9]+) min");
+            var regexLocalTimeStamp = new RegExp("[0-9]{2}:[0-9]{2}");
+
             //Time format is "x min"
             if (regexInMinutes.test(displayTime)) {
                 var inMinutes = parseInt(displayTime.match(regexInMinutes)[1], 10);
 
                 // The Skyss app rounds the displayed minutes down, so a board reading
                 // "x min" is really up to x+1 minutes away. Adding 1 matches the app.
-                realTime = moment().add(inMinutes + 1, 'minutes');
-            
-            //Time format is "HH:mm". 
+                realTime = moment().add(inMinutes + 1, "minutes");
+
+                //Time format is "HH:mm".
             } else if (regexLocalTimeStamp.test(displayTime)) {
                 realTime = moment(displayTime, "HH:mm");
-            
+
                 //Time is next day
                 if (realTime.isBefore(moment())) {
-                    realTime.add(1, 'day');
+                    realTime.add(1, "day");
                 }
             }
             return realTime;
         };
 
-        var buildRequestBody = function() {
+        /**
+         * Build the v3 `/departures` request body by grouping configured stops by
+         * stopGroupId and normalising ids to the `NSR:` form.
+         * @returns {{ stopGroups: Array<{id: string, stops: Array<{id: string}>}> }}
+         */
+        var buildRequestBody = function () {
             // Helper function to add NSR prefix if not present
-            const normalizeId = function(id, type) {
+            const normalizeId = function (id, type) {
                 if (!id) return undefined;
-                if (id.startsWith && id.startsWith('NSR:')) return id;
-                return 'NSR:' + type + ':' + id;
+                if (id.startsWith && id.startsWith("NSR:")) return id;
+                return "NSR:" + type + ":" + id;
             };
 
             const stopGroupsMap = {}; // key = groupId
@@ -216,20 +254,20 @@ Module.register("MMM-Skyss",{
 
                 // Support alternative grouped config form: { stopGroupId: "32383", stopIds: ["55869", "55870"] }
                 if (item.stopIds && item.stopGroupId) {
-                    const groupId = normalizeId(item.stopGroupId, 'StopPlace');
+                    const groupId = normalizeId(item.stopGroupId, "StopPlace");
                     if (!groupId) {
-                        console.warn('[MMM-Skyss] Skipping grouped entry without valid stopGroupId', item);
+                        console.warn("[MMM-Skyss] Skipping grouped entry without valid stopGroupId", item);
                         continue;
                     }
                     if (!stopGroupsMap[groupId]) {
                         stopGroupsMap[groupId] = { id: groupId, stops: [] };
                     }
-                    item.stopIds.forEach(rawStopId => {
-                        const stopId = normalizeId(rawStopId, 'Quay');
+                    item.stopIds.forEach((rawStopId) => {
+                        const stopId = normalizeId(rawStopId, "Quay");
                         if (stopId) {
                             stopGroupsMap[groupId].stops.push({ id: stopId });
                         } else {
-                            console.warn('[MMM-Skyss] Skipping invalid stopId in grouped entry', rawStopId);
+                            console.warn("[MMM-Skyss] Skipping invalid stopId in grouped entry", rawStopId);
                         }
                     });
                     continue; // proceed to next config item
@@ -240,16 +278,16 @@ Module.register("MMM-Skyss",{
                 const rawStopId = item.stopId;
 
                 if (!rawGroupId) {
-                    console.warn('[MMM-Skyss] Missing stopGroupId for stop entry. This stop will be skipped:', item);
+                    console.warn("[MMM-Skyss] Missing stopGroupId for stop entry. This stop will be skipped:", item);
                     continue;
                 }
                 if (!rawStopId) {
-                    console.warn('[MMM-Skyss] Missing stopId for stop entry. This stop will be skipped:', item);
+                    console.warn("[MMM-Skyss] Missing stopId for stop entry. This stop will be skipped:", item);
                     continue;
                 }
 
-                const groupId = normalizeId(rawGroupId, 'StopPlace');
-                const stopId = normalizeId(rawStopId, 'Quay');
+                const groupId = normalizeId(rawGroupId, "StopPlace");
+                const stopId = normalizeId(rawStopId, "Quay");
 
                 if (!stopGroupsMap[groupId]) {
                     stopGroupsMap[groupId] = { id: groupId, stops: [] };
@@ -260,13 +298,18 @@ Module.register("MMM-Skyss",{
             const stopGroupsArray = Object.values(stopGroupsMap);
 
             // Additional safeguard: remove groups without id or with no stops
-            const filtered = stopGroupsArray.filter(g => g.id && g.stops.length > 0);
+            const filtered = stopGroupsArray.filter((g) => g.id && g.stops.length > 0);
 
             if (filtered.length === 0) {
-                if (self.config.debug) console.log('[MMM-Skyss][DEBUG] No valid stop groups constructed from configuration. Check your stops config.');
+                if (self.config.debug)
+                    console.log(
+                        "[MMM-Skyss][DEBUG] No valid stop groups constructed from configuration. Check your stops config."
+                    );
             } else if (self.config.debug) {
-                console.log('[MMM-Skyss][DEBUG] Constructed request body with', filtered.length, 'group(s).');
-                filtered.forEach(g => console.log('[MMM-Skyss][DEBUG] Group', g.id, 'stops:', g.stops.map(s => s.id).join(', ')));
+                console.log("[MMM-Skyss][DEBUG] Constructed request body with", filtered.length, "group(s).");
+                filtered.forEach((g) =>
+                    console.log("[MMM-Skyss][DEBUG] Group", g.id, "stops:", g.stops.map((s) => s.id).join(", "))
+                );
             }
 
             return { stopGroups: filtered };
@@ -281,7 +324,7 @@ Module.register("MMM-Skyss",{
 
         var client = new HttpClient();
 
-        client.get(requestBody, function(err, stopResponse) {
+        client.get(requestBody, function (err, stopResponse) {
             if (err) {
                 if (self.config.debug) console.log("[MMM-Skyss][DEBUG] Request failed:", err);
                 callback(err, []);
@@ -314,20 +357,34 @@ Module.register("MMM-Skyss",{
 
             var allStopItems = [];
 
-            for(var j = 0; j < times.length; j++) {
+            for (var j = 0; j < times.length; j++) {
                 var journey = times[j];
                 var stop = departure.Stops[journey.StopIdentifier] || {};
                 var timestamp;
-                
+
                 var realtimeStamp = processSkyssDisplaytime(journey.DisplayTime);
-                if ( self.config.useRealtime && moment.isMoment(realtimeStamp) ) {
+                if (self.config.useRealtime && moment.isMoment(realtimeStamp)) {
                     timestamp = realtimeStamp.toISOString();
-                    if (self.config.debug) console.log("[MMM-Skyss][DEBUG] Using realtime for", journey.RoutePublicIdentifier, ":", journey.DisplayTime, "->", timestamp);
+                    if (self.config.debug)
+                        console.log(
+                            "[MMM-Skyss][DEBUG] Using realtime for",
+                            journey.RoutePublicIdentifier,
+                            ":",
+                            journey.DisplayTime,
+                            "->",
+                            timestamp
+                        );
                 } else {
                     timestamp = journey.AimedTime;
-                    if (self.config.debug) console.log("[MMM-Skyss][DEBUG] Using scheduled time for", journey.RoutePublicIdentifier, ":", timestamp);
+                    if (self.config.debug)
+                        console.log(
+                            "[MMM-Skyss][DEBUG] Using scheduled time for",
+                            journey.RoutePublicIdentifier,
+                            ":",
+                            timestamp
+                        );
                 }
-                
+
                 allStopItems.push({
                     stopId: journey.StopIdentifier,
                     stopName: stop.Description || "",
@@ -336,18 +393,18 @@ Module.register("MMM-Skyss",{
                     service: journey.ServiceMode,
                     time: {
                         Timestamp: timestamp,
-                        Status: journey.Status,
+                        Status: journey.Status
                     },
                     platform: journey.Platform || ""
                 });
             }
-            
+
             if (self.config.debug) console.log("[MMM-Skyss][DEBUG] Processed", allStopItems.length, "stop items");
             callback(null, allStopItems);
-        })
+        });
     },
 
-    getTableHeaderRow: function() {
+    getTableHeaderRow: function () {
         var thLine = document.createElement("th");
         thLine.className = "";
         thLine.appendChild(document.createTextNode(this.translate("LINEHEADER")));
@@ -372,8 +429,12 @@ Module.register("MMM-Skyss",{
         tr.appendChild(document.createElement("th"));
         tr.appendChild(thLine);
         tr.appendChild(thDestination);
-        if (this.config.showStopName) { tr.appendChild(thStopName); }
-        if (this.config.showPlatform) { tr.appendChild(thPlatform); }
+        if (this.config.showStopName) {
+            tr.appendChild(thStopName);
+        }
+        if (this.config.showPlatform) {
+            tr.appendChild(thPlatform);
+        }
         tr.appendChild(thTime);
 
         var thead = document.createElement("thead");
@@ -383,30 +444,30 @@ Module.register("MMM-Skyss",{
         return thead;
     },
 
-    getTableRow: function(journey) {
+    getTableRow: function (journey) {
         var tdIcon = document.createElement("td");
         var imageFA;
         switch (journey.service) {
-        case "Bus":
-        case "Express":
-        case "Airport bus":
-            imageFA = "bus";
-            break;
-        case "Light rail":
-            imageFA = "subway";
-            break;
-        case "Ferry":
-        case "Boat":
-            imageFA = "ship";
-            break;
-        case "Train":
-            imageFA = "train";
-            break;
-        default:
-            imageFA = "rocket";
-            break;
+            case "Bus":
+            case "Express":
+            case "Airport bus":
+                imageFA = "bus";
+                break;
+            case "Light rail":
+                imageFA = "subway";
+                break;
+            case "Ferry":
+            case "Boat":
+                imageFA = "ship";
+                break;
+            case "Train":
+                imageFA = "train";
+                break;
+            default:
+                imageFA = "rocket";
+                break;
         }
-        tdIcon.className = "fa fa-"+imageFA;
+        tdIcon.className = "fa fa-" + imageFA;
 
         var tdLine = document.createElement("td");
         tdLine.className = "line";
@@ -430,7 +491,7 @@ Module.register("MMM-Skyss",{
         }
 
         var tdTime = document.createElement("td");
-        if (journey.time.Status != "Schedule") {
+        if (journey.time.Status !== "Schedule") {
             tdTime.className = "time light sanntid";
         } else {
             tdTime.className = "time light";
@@ -441,17 +502,27 @@ Module.register("MMM-Skyss",{
         tr.appendChild(tdIcon);
         tr.appendChild(tdLine);
         tr.appendChild(tdDestination);
-        if (this.config.showStopName) { tr.appendChild(tdStopName); }
-        if (this.config.showPlatform) { tr.appendChild(tdPlatform); }
+        if (this.config.showStopName) {
+            tr.appendChild(tdStopName);
+        }
+        if (this.config.showPlatform) {
+            tr.appendChild(tdPlatform);
+        }
         tr.appendChild(tdTime);
 
         return tr;
     },
 
-    formatTime: function(t) {
+    /**
+     * Format a departure time for display: "Now" / "1 min" / "x minutes" when the
+     * departure is near, otherwise the clock time in the configured 12/24h format.
+     * @param {string|number|Date} t departure timestamp
+     * @returns {string}
+     */
+    formatTime: function (t) {
         var now = new Date();
         var tti = new Date(t);
-        var diff = tti - now;
+        var diff = tti.getTime() - now.getTime();
         var min = Math.floor(diff / 60000);
 
         if (this.config.humanizeTimeTreshold !== 0) {
@@ -467,7 +538,7 @@ Module.register("MMM-Skyss",{
         return moment(tti).format(this.config.timeFormat);
     },
 
-    socketNotificationReceived: function(notification, payload) {
+    socketNotificationReceived: function (notification, payload) {
         var self = this;
         if (this.config.debug) Log.log(this.name + " received a socket notification: " + notification);
         if (notification !== "getstop") return;
@@ -489,4 +560,6 @@ Module.register("MMM-Skyss",{
     },
 
     requests: {}
-});
+};
+
+Module.register("MMM-Skyss", Skyss);

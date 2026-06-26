@@ -1,13 +1,13 @@
 {
-	"LOADING":				"Laster &hellip;",
-	"NODEPARTURES":			"Ingen avganger",
-	"STARTINGMODULE":		"Starter modul",
-	"NOW":					"Nå",
-	"1MIN":					"1 minutt",
-	"MINUTES":				"minutter",
-	"LINEHEADER":			"Linje",
-	"STOPNAMEHEADER":		"Fra",
-	"DESTINATIONHEADER":	"Til",
-	"PLATFORMHEADER":		"Plattform",
-	"TIMEHEADER":			"Tid"
+  "LOADING": "Laster &hellip;",
+  "NODEPARTURES": "Ingen avganger",
+  "STARTINGMODULE": "Starter modul",
+  "NOW": "Nå",
+  "1MIN": "1 minutt",
+  "MINUTES": "minutter",
+  "LINEHEADER": "Linje",
+  "STOPNAMEHEADER": "Fra",
+  "DESTINATIONHEADER": "Til",
+  "PLATFORMHEADER": "Plattform",
+  "TIMEHEADER": "Tid"
 }

@@ -22,13 +22,15 @@ test("formatTime: humanizes minutes under the threshold", () => {
 
 test("formatTime: 24h clock above the threshold", () => {
     const ctx = makeInstance(def, { timeFormat: "HH:mm" });
-    const t = new Date(now + 40 * 60000); t.setSeconds(0, 0);
+    const t = new Date(now + 40 * 60000);
+    t.setSeconds(0, 0);
     assert.strictEqual(ctx.formatTime(t.toISOString()), pad(t.getHours()) + ":" + pad(t.getMinutes()));
 });
 
 test("formatTime: 12h clock respects timeFormat", () => {
     const ctx = makeInstance(def, { timeFormat: "h:mm A" });
-    const t = new Date(now + 40 * 60000); t.setHours(14, 5, 0, 0);
+    const t = new Date(now + 40 * 60000);
+    t.setHours(14, 5, 0, 0);
     assert.match(ctx.formatTime(t.toISOString()), /\b(AM|PM)\b/);
 });
 
@@ -37,7 +39,9 @@ test("formatTime: 12h clock respects timeFormat", () => {
 test("getStopInfo: undefined stops -> empty success, no network call", () => {
     const ctx = makeInstance(def, { stops: undefined });
     let cb;
-    ctx.getStopInfo(ctx.config.stops, (err, res) => { cb = [err, res]; });
+    ctx.getStopInfo(ctx.config.stops, (err, res) => {
+        cb = [err, res];
+    });
     assert.deepStrictEqual(cb, [null, []]);
     assert.strictEqual(ctx._sent, undefined);
 });
@@ -55,10 +59,12 @@ test("getStopInfo: valid stops -> tagged request with correct body", () => {
     assert.strictEqual(msg.n, "getstop");
     assert.ok(msg.p.id, "request carries an id");
     assert.deepStrictEqual(msg.p.body, {
-        stopGroups: [{
-            id: "NSR:StopPlace:32379",
-            stops: [{ id: "NSR:Quay:55861" }, { id: "NSR:Quay:55863" }]
-        }]
+        stopGroups: [
+            {
+                id: "NSR:StopPlace:32379",
+                stops: [{ id: "NSR:Quay:55861" }, { id: "NSR:Quay:55863" }]
+            }
+        ]
     });
     assert.ok(ctx.requests[msg.p.id], "callback stored under its id");
 });
@@ -67,10 +73,12 @@ test("getStopInfo: grouped config form produces the same body", () => {
     const ctx = makeInstance(def, { stops: [{ stopGroupId: "32379", stopIds: ["55861", "55863"] }] });
     ctx.getStopInfo(ctx.config.stops, () => {});
     assert.deepStrictEqual(ctx._sent[0].p.body, {
-        stopGroups: [{
-            id: "NSR:StopPlace:32379",
-            stops: [{ id: "NSR:Quay:55861" }, { id: "NSR:Quay:55863" }]
-        }]
+        stopGroups: [
+            {
+                id: "NSR:StopPlace:32379",
+                stops: [{ id: "NSR:Quay:55861" }, { id: "NSR:Quay:55863" }]
+            }
+        ]
     });
 });
 
@@ -79,7 +87,9 @@ test("getStopInfo: grouped config form produces the same body", () => {
 test("socketNotificationReceived: only consumes responses for its own id", () => {
     const ctx = makeInstance(def, { stops: [{ stopId: "1", stopGroupId: "2" }] });
     let resolved = null;
-    ctx.getStopInfo(ctx.config.stops, (err, res) => { resolved = { err, res }; });
+    ctx.getStopInfo(ctx.config.stops, (err, res) => {
+        resolved = { err, res };
+    });
     const id = ctx._sent[0].p.id;
 
     // A response for another instance's id must be ignored.
@@ -97,7 +107,9 @@ test("socketNotificationReceived: only consumes responses for its own id", () =>
 test("socketNotificationReceived: error payload propagates as an error", () => {
     const ctx = makeInstance(def, { stops: [{ stopId: "1", stopGroupId: "2" }] });
     let resolved = null;
-    ctx.getStopInfo(ctx.config.stops, (err, res) => { resolved = { err, res }; });
+    ctx.getStopInfo(ctx.config.stops, (err, res) => {
+        resolved = { err, res };
+    });
     const id = ctx._sent[0].p.id;
     ctx.socketNotificationReceived("getstop", { id, err: "network down" });
     assert.strictEqual(resolved.err, "network down");
@@ -147,13 +159,33 @@ test("poll: success resets the error counter", () => {
 test("poll: sorts journeys ascending and applies maxItems", () => {
     const ctx = makeInstance(def, { maxItems: 2 });
     const t = (m) => new Date(now + m * 60000).toISOString();
-    ctx.getStopInfo = (stops, cb) => cb(null, [
-        { lineName: "C", time: { Timestamp: t(30) } },
-        { lineName: "A", time: { Timestamp: t(5) } },
-        { lineName: "B", time: { Timestamp: t(10) } }
-    ]);
+    ctx.getStopInfo = (stops, cb) =>
+        cb(null, [
+            { lineName: "C", time: { Timestamp: t(30) } },
+            { lineName: "A", time: { Timestamp: t(5) } },
+            { lineName: "B", time: { Timestamp: t(10) } }
+        ]);
     ctx.poll();
-    assert.deepStrictEqual(ctx.journeys.map((j) => j.lineName), ["A", "B"]);
+    assert.deepStrictEqual(
+        ctx.journeys.map((j) => j.lineName),
+        ["A", "B"]
+    );
+});
+
+test("poll: walkingTime hides departures too soon to catch", () => {
+    const ctx = makeInstance(def, { walkingTime: 10 });
+    const t = (m) => new Date(now + m * 60000).toISOString();
+    ctx.getStopInfo = (stops, cb) =>
+        cb(null, [
+            { lineName: "soon", time: { Timestamp: t(3) } },
+            { lineName: "ok1", time: { Timestamp: t(12) } },
+            { lineName: "ok2", time: { Timestamp: t(20) } }
+        ]);
+    ctx.poll();
+    assert.deepStrictEqual(
+        ctx.journeys.map((j) => j.lineName),
+        ["ok1", "ok2"]
+    );
 });
 
 // ---- getDom -------------------------------------------------------------
@@ -169,10 +201,16 @@ test("getDom: LOADING before first load, NODEPARTURES after", () => {
 test("getDom: renders a tbody with one row per journey", () => {
     const ctx = makeInstance(def);
     ctx.hasLoaded = true;
-    ctx.journeys = [{
-        service: "Bus", lineName: "5", destinationName: "Town", platform: "A", stopName: "Stop",
-        time: { Status: "Realtime", Timestamp: new Date(now + 9 * 60000).toISOString() }
-    }];
+    ctx.journeys = [
+        {
+            service: "Bus",
+            lineName: "5",
+            destinationName: "Town",
+            platform: "A",
+            stopName: "Stop",
+            time: { Status: "Realtime", Timestamp: new Date(now + 9 * 60000).toISOString() }
+        }
+    ];
     const table = ctx.getDom();
     assert.strictEqual(table.tagName, "table");
     assert.strictEqual(table.className, "skyss small");

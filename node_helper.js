@@ -1,17 +1,25 @@
+// @ts-check
 const NodeHelper = require("node_helper");
 const https = require("node:https");
 
-module.exports = NodeHelper.create({
+/** @type {Record<string, any>} */
+const helper = {
     start: function () {
         console.log("Starting module: " + this.name);
     },
 
+    /**
+     * Handle a "getstop" request from the frontend: POST the body to the Skyss v3
+     * API and return the response (or error) tagged with the same request id.
+     * @param {string} notification
+     * @param {{ id?: string, body?: any, debug?: boolean }} payload
+     */
     socketNotificationReceived: function (notification, payload) {
         var self = this;
         if (notification !== "getstop") return;
 
         var debug = payload && payload.debug;
-        var id = payload && payload.id;   // echoed back so the right instance/request gets the response
+        var id = payload && payload.id; // echoed back so the right instance/request gets the response
         const postData = JSON.stringify(payload.body);
 
         if (debug) {
@@ -75,4 +83,6 @@ module.exports = NodeHelper.create({
         req.write(postData);
         req.end();
     }
-});
+};
+
+module.exports = NodeHelper.create(helper);

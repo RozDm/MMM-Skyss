@@ -1,0 +1,14 @@
+{
+  "printWidth": 120,
+  "tabWidth": 4,
+  "useTabs": false,
+  "semi": true,
+  "singleQuote": false,
+  "trailingComma": "none",
+  "overrides": [
+    {
+      "files": ["*.json", "*.yml", "*.yaml", "*.css"],
+      "options": { "tabWidth": 2 }
+    }
+  ]
+}
