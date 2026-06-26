@@ -51,9 +51,11 @@ function makeHelperCtx() {
     return ctx;
 }
 
-function fakeResponse() {
+function fakeResponse(statusCode) {
     const res = new EventEmitter();
+    res.statusCode = statusCode === undefined ? 200 : statusCode;
     res.setEncoding = () => {};
+    res.resume = () => {};
     return res;
 }
 
@@ -93,4 +95,11 @@ test("node_helper: ignores notifications other than getstop", () => {
     const ctx = makeHelperCtx();
     ctx.socketNotificationReceived("somethingelse", { id: "x" });
     assert.strictEqual(ctx._sent.length, 0);
+});
+
+test("node_helper: reports a non-2xx HTTP status as an error", () => {
+    const ctx = makeHelperCtx();
+    ctx.socketNotificationReceived("getstop", { id: "req-5", body: {}, debug: false });
+    lastReq._respond(fakeResponse(503));
+    assert.deepStrictEqual(ctx._sent, [{ n: "getstop", p: { id: "req-5", err: "HTTP 503" } }]);
 });

@@ -221,25 +221,6 @@ test("getDom: renders a tbody with one row per journey", () => {
     assert.strictEqual(tbody.childNodes.length, 1);
 });
 
-test("poll: ignores a late/duplicate response (watchdog settled guard)", () => {
-    const ctx = makeInstance(def);
-    let cb;
-    ctx.getStopInfo = (stops, callback) => {
-        cb = callback;
-    };
-    ctx.poll();
-    // First response is handled normally.
-    cb(null, [{ lineName: "A", time: { Timestamp: new Date(now + 5 * 60000).toISOString() } }]);
-    assert.strictEqual(ctx.journeys.length, 1);
-    assert.strictEqual(ctx._scheduled, ctx.config.serviceReloadInterval);
-    // A second (late) response for the same poll must be ignored — no reschedule,
-    // no error-counter bump.
-    ctx._scheduled = "unchanged";
-    cb("boom", []);
-    assert.strictEqual(ctx._scheduled, "unchanged");
-    assert.strictEqual(ctx.consecutiveErrors, 0);
-});
-
 // ---- deviations ---------------------------------------------------------
 
 test("getStopInfo: extracts deviation text from the Messages array", () => {
@@ -271,4 +252,55 @@ test("getDom: no deviation box when showDeviations is false", () => {
     ctx.deviations = ["something"];
     const devBox = ctx.getDom().childNodes.find((c) => c.className === "skyss-deviations xsmall");
     assert.strictEqual(devBox, undefined);
+});
+
+test("getStopInfo: skips a Message whose field is a non-string object", () => {
+    const ctx = makeInstance(def, { stops: [{ stopId: "1", stopGroupId: "2" }] });
+    ctx.getStopInfo(ctx.config.stops, () => {});
+    const id = ctx._sent[0].p.id;
+    const body = JSON.stringify({
+        PassingTimes: [],
+        Stops: {},
+        Messages: [{ Text: { nb: "Forsinket", en: "Delayed" } }, { Title: "Omkjøring" }]
+    });
+    ctx.socketNotificationReceived("getstop", { id, response: body });
+    assert.deepStrictEqual(ctx.deviations, ["Omkjøring"]);
+});
+
+test("getStopInfo: realtime 'x min' uses x minutes (no +1 fudge)", () => {
+    const ctx = makeInstance(def, { stops: [{ stopId: "1", stopGroupId: "2" }] });
+    let items;
+    ctx.getStopInfo(ctx.config.stops, (err, res) => {
+        items = res;
+    });
+    const id = ctx._sent[0].p.id;
+    const body = JSON.stringify({
+        Stops: {},
+        Messages: [],
+        PassingTimes: [
+            {
+                StopIdentifier: "x",
+                RoutePublicIdentifier: "4",
+                TripDestination: "Town",
+                ServiceMode: "Bus",
+                Status: "Late",
+                DisplayTime: "5 min",
+                AimedTime: "2026-01-01T00:00:00.000Z"
+            }
+        ]
+    });
+    ctx.socketNotificationReceived("getstop", { id, response: body });
+    const minutes = (new Date(items[0].time.Timestamp).getTime() - Date.now()) / 60000;
+    assert.ok(minutes > 4.5 && minutes <= 5.05, "expected ~5 minutes, got " + minutes);
+});
+
+test("getStopInfo: a non-array stopIds is skipped, not crashed", () => {
+    const ctx = makeInstance(def, { stops: [{ stopGroupId: "32379", stopIds: "55861" }] });
+    let cbArgs;
+    ctx.getStopInfo(ctx.config.stops, (err, res) => {
+        cbArgs = [err, res];
+    });
+    // No valid groups built (the string stopIds is skipped), so no network call.
+    assert.deepStrictEqual(cbArgs, [null, []]);
+    assert.strictEqual(ctx._sent, undefined);
 });

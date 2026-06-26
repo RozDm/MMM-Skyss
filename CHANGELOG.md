@@ -1,5 +1,15 @@
 # MMM-Skyss Change Log
 
+## [2.3.2] - 2026-06-26
+
+- Fix: deviation messages whose text field is an object (e.g. a localised `{nb, en}` map) no longer render as `[object Object]`. Message text is now taken only from the first non-empty string among the common field names; entries with no usable string are skipped.
+- Fix: realtime "x min" departures are no longer shown one minute late. The spurious `+1` added to the parsed minute count has been removed, so "5 min" now means five minutes.
+- Fix: a string `stopIds` in the config no longer crashes request building — `stopIds` is now validated as an array before use.
+- Robustness: the lost-response safety net introduced in 2.3.1 is now a per-request timeout instead of a poll-loop watchdog. A request whose response is never delivered drops its pending map entry (closing a slow leak of the request map) and surfaces an error so polling reschedules; the timer is cleared when a response arrives and `unref()`'d so it never by itself keeps the runtime alive.
+- Robustness: the node helper now treats a non-2xx HTTP response from the Skyss API as an error (so polling backs off) instead of trying to parse an error page as departures.
+- Cleanup: removed a stray `requests` property left on the module's prototype and dead `className` assignments in the table header builder.
+- Docs: documented that `humanizeTimeTreshold: 0` disables humanization entirely (every departure shows the clock time, including ones due now).
+
 ## [2.3.1] - 2026-06-26
 
 - Robustness: the self-scheduling poll loop now has a watchdog. If a socket response between the node helper and the frontend is ever lost, the next poll is still scheduled instead of polling stalling permanently (which would freeze the board on stale data until a restart). The backoff calculation was extracted into `nextBackoff()`.

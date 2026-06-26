@@ -44,6 +44,15 @@ const helper = {
         var req = https.request(options, (res) => {
             if (debug) console.log("[MMM-Skyss] API response status:", res.statusCode);
 
+            // Treat non-2xx HTTP responses as errors so polling backs off instead of
+            // trying to parse an error page/body.
+            var status = res.statusCode || 0;
+            if (status < 200 || status >= 300) {
+                res.resume(); // drain so the socket can be freed
+                self.sendSocketNotification("getstop", { id: id, err: "HTTP " + status });
+                return;
+            }
+
             res.setEncoding("utf8");
             var data = "";
             var size = 0;
