@@ -4,7 +4,7 @@
 ![1](images/MMM-Skyss-1.png)
 ![2](images/MMM-Skyss-2.png) 
 
-Current version is 2.0.2. See [changelog](CHANGELOG.md "Version history") for version history.
+Current version is 2.1.0. See [changelog](CHANGELOG.md "Version history") for version history.
 
 ## Installation
 
@@ -56,8 +56,9 @@ maxItems | Number of journeys to display | 5
 showHeader | Set this to true to show header above the journeys | false
 showStopName | Show the name of each stop (the name is fetched automatically from the Skyss API) | false
 showPlatform | Set this to true to get the names of the platforms. Set this to true to check the name of the platform if you need to filter  | false
-humanizeTimeTreshold | If time to next journey is below this value, it will be displayed as "x minutes" instead of time | 15 
+humanizeTimeTreshold | If time to next journey is below this value, it will be displayed as "x minutes" instead of time. The correctly spelled `humanizeTimeThreshold` is accepted as an alias | 15 
 serviceReloadInterval | Refresh rate in MS for how often we call Skyss's web service. NB! Don't set it too low! | 30000 
+maxReloadInterval | Upper bound (MS) for the exponential backoff used after API errors. On failures the last good data stays on screen and the poll interval grows up to this value | 300000 
 animationSpeed | How fast the animation changes when updating mirror - in milliseconds | 0  
 fade | Set this to true to fade list from light to dark | true  
 fadePoint | Start fading on 1/4th of the list | 0.25
@@ -173,6 +174,17 @@ Example:
   }
 }
 ```
+
+## Behavior on errors and empty results
+- While the API is unreachable or returns malformed data, the **last good departures stay on screen** instead of the board going blank, and the next poll is delayed with exponential backoff up to `maxReloadInterval`.
+- A successful response with no upcoming departures shows **"No departures"**. "Loading…" is only shown before the very first successful response.
+
+## Development
+This module has no runtime dependencies. There is a small test suite built on Node's built-in test runner (Node 18+):
+```bash
+npm test
+```
+Continuous integration (syntax check, tests on Node 18/20/22, and `npm audit`) runs via GitHub Actions on every push and pull request.
 
 ## Translations
 
