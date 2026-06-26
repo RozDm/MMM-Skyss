@@ -57,6 +57,14 @@ jobs:
                   merge_method: "merge"
                 });
                 core.info(`Merged PR #${pr.number}.`);
+                // Clean up the (same-repo) head branch after merging — more reliable
+                // than the repo's "auto-delete head branches" for bot-merged PRs.
+                try {
+                  await github.rest.git.deleteRef({ owner, repo, ref: `heads/${pr.head.ref}` });
+                  core.info(`Deleted branch ${pr.head.ref}.`);
+                } catch (e) {
+                  core.warning(`Could not delete branch ${pr.head.ref}: ${e.message}`);
+                }
               } catch (e) {
                 core.warning(`Could not merge PR #${pr.number}: ${e.message}`);
               }

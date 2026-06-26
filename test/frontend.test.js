@@ -29,8 +29,9 @@ test("formatTime: 24h clock above the threshold", () => {
 
 test("formatTime: 12h clock respects timeFormat", () => {
     const ctx = makeInstance(def, { timeFormat: "h:mm A" });
-    const t = new Date(now + 40 * 60000);
-    t.setHours(14, 5, 0, 0);
+    // Far enough ahead to always clear the humanize threshold, so it formats as a
+    // clock time (with AM/PM) regardless of the current time of day.
+    const t = new Date(now + 3 * 60 * 60000);
     assert.match(ctx.formatTime(t.toISOString()), /\b(AM|PM)\b/);
 });
 
