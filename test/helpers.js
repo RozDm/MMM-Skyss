@@ -82,6 +82,7 @@ function makeInstance(def, configOverrides) {
             stops: [],
             timeFormat: "HH:mm",
             maxItems: 5,
+            walkingTime: 0,
             humanizeTimeTreshold: 15,
             serviceReloadInterval: 30000,
             maxReloadInterval: 300000,

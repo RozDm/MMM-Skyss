@@ -172,6 +172,22 @@ test("poll: sorts journeys ascending and applies maxItems", () => {
     );
 });
 
+test("poll: walkingTime hides departures too soon to catch", () => {
+    const ctx = makeInstance(def, { walkingTime: 10 });
+    const t = (m) => new Date(now + m * 60000).toISOString();
+    ctx.getStopInfo = (stops, cb) =>
+        cb(null, [
+            { lineName: "soon", time: { Timestamp: t(3) } },
+            { lineName: "ok1", time: { Timestamp: t(12) } },
+            { lineName: "ok2", time: { Timestamp: t(20) } }
+        ]);
+    ctx.poll();
+    assert.deepStrictEqual(
+        ctx.journeys.map((j) => j.lineName),
+        ["ok1", "ok2"]
+    );
+});
+
 // ---- getDom -------------------------------------------------------------
 
 test("getDom: LOADING before first load, NODEPARTURES after", () => {

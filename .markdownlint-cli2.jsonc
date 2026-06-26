@@ -1,0 +1,15 @@
+{
+    // Lint Markdown for genuine issues (trailing spaces, hard tabs, broken lists)
+    // without forcing a structural rewrite of the hand-written docs.
+    "config": {
+        "default": true,
+        "MD013": false, // line length — prose and tables run long on purpose
+        "MD024": { "siblings_only": true }, // repeated sub-headings under different versions are fine
+        "MD025": false, // the README intentionally uses several top-level sections
+        "MD033": false, // allow occasional inline HTML / entities in examples
+        "MD041": false, // first line need not be a heading
+        "MD060": false // table pipe-spacing style — cosmetic, tables render fine on GitHub
+    },
+    "globs": ["**/*.md"],
+    "ignores": ["node_modules"]
+}

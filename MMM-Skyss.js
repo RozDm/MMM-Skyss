@@ -21,6 +21,7 @@ const Skyss = {
         showPlatform: false, // Set this to true to get the names of the platforms (default is false)
         showStopName: false, // Show the stop name (fetched automatically from the Skyss API)
         maxItems: 5, // Number of journeys to display (default is 5)
+        walkingTime: 0, // Minutes needed to reach the stop; departures leaving sooner are hidden (0 = show all)
         humanizeTimeTreshold: 15, // If time to next journey is below this value, it will be displayed as "x minutes" instead of time (default is 15 minutes)
         serviceReloadInterval: 30000, // Refresh rate in MS for how often we call Skyss' web service. NB! Don't set it too low! (default is 30 seconds)
         maxReloadInterval: 300000, // Upper bound for the exponential backoff applied after API errors (default is 5 minutes)
@@ -42,7 +43,8 @@ const Skyss = {
     getTranslations: function () {
         return {
             en: "translations/en.json",
-            nb: "translations/nb.json"
+            nb: "translations/nb.json",
+            nn: "translations/nn.json"
         };
     },
 
@@ -163,6 +165,15 @@ const Skyss = {
             allJourneys.sort(function (a, b) {
                 return new Date(a.time.Timestamp).getTime() - new Date(b.time.Timestamp).getTime();
             });
+
+            // Hide departures leaving too soon to walk to (walkingTime minutes).
+            if (self.config.walkingTime > 0) {
+                var nowMs = Date.now();
+                allJourneys = allJourneys.filter(function (j) {
+                    return (new Date(j.time.Timestamp).getTime() - nowMs) / 60000 >= self.config.walkingTime;
+                });
+            }
+
             self.journeys = allJourneys.slice(0, self.config.maxItems);
 
             if (self.config.debug) console.log("[MMM-Skyss][DEBUG] Displaying", self.journeys.length, "journeys");

@@ -5,14 +5,16 @@ table.skyss {
   border: 1px;
   text-align: left;
 }
+
 table.skyss td,
 table.skyss th {
   padding: 0 6px;
 }
 
 table.skyss thead {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.733);
+  border-bottom: 1px solid rgb(255 255 255 / 73.3%);
 }
+
 /* table.skyss td {
   border-left: 1px solid rgba(255, 255, 255, 0.685);
 } */
@@ -31,7 +33,7 @@ table.skyss thead {
 }
 
 .sanntid {
-  color: rgb(231, 149, 35);
+  color: rgb(231 149 35);
   font-weight: bold;
 }
 

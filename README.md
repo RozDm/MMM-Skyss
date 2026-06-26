@@ -1,19 +1,22 @@
 # MagicMirror² Module: Skyss
+
 'MMM-Skyss' is a module based on the Ruter equivalent made by Cato Antonsen for displaying public transport information for the Hordaland region in Norway on a [MagicMirror²](https://magicmirror.builders/). It's using data from Skyss.no. Skyss is a registered trademark of Hordaland County Councile (Hordaland Fylkeskommune) which is not affiliated with this product. Content from Skyss APIs may be copyrighted.
 
 ![1](images/MMM-Skyss-1.png)
-![2](images/MMM-Skyss-2.png) 
+![2](images/MMM-Skyss-2.png)
 
-Current version is 2.1.0. See [changelog](CHANGELOG.md "Version history") for version history.
+Current version is 2.2.0. See [changelog](CHANGELOG.md "Version history") for version history.
 
 ## Installation
 
 Remote to your MM2-box with your terminal software and go to your MagicMirror's Module folder:
+
 ````bash
 cd ~/MagicMirror/modules
 ````
 
 Clone the repository:
+
 ````bash
 git clone https://github.com/RozDm/MMM-Skyss.git
 ````
@@ -21,25 +24,26 @@ git clone https://github.com/RozDm/MMM-Skyss.git
 This module has **no external dependencies** — there is no `npm install` step. Once cloned it is ready to be configured.
 
 Add the module to the modules array in the `config/config.js` file by adding the following section. You can change this configuration later when you see this works:
+
 ```javascript
 {
-	module: 'MMM-Skyss',
-	header: 'Skyss',
-	position: 'top_left',
-	config: {
-		showPlatform: true,
-		maxItems: 8,
-		stops: [
-			{
-				stopId: "55861",
-				stopGroupId: "32379"
-			},
-			{
-				stopId: "55863",
-				stopGroupId: "32379"
-			}
-		]
-	}
+ module: 'MMM-Skyss',
+ header: 'Skyss',
+ position: 'top_left',
+ config: {
+  showPlatform: true,
+  maxItems: 8,
+  stops: [
+   {
+    stopId: "55861",
+    stopGroupId: "32379"
+   },
+   {
+    stopId: "55863",
+    stopGroupId: "32379"
+   }
+  ]
+ }
 },
 ```
 
@@ -49,16 +53,17 @@ Add the module to the modules array in the `config/config.js` file by adding the
 
 These are the valid configuration options you can put inside the config array above:
 
-Configuration option | Comment | Default 
+Configuration option | Comment | Default
 ---|---|---
 stops | Array of stops. See below | Empty array
-maxItems | Number of journeys to display | 5 
+maxItems | Number of journeys to display | 5
+walkingTime | Minutes needed to reach the stop; departures leaving sooner than this are hidden (0 = show all) | 0
 showHeader | Set this to true to show header above the journeys | false
 showStopName | Show the name of each stop (the name is fetched automatically from the Skyss API) | false
 showPlatform | Set this to true to get the names of the platforms. Set this to true to check the name of the platform if you need to filter  | false
-humanizeTimeTreshold | If time to next journey is below this value, it will be displayed as "x minutes" instead of time. The correctly spelled `humanizeTimeThreshold` is accepted as an alias | 15 
-serviceReloadInterval | Refresh rate in MS for how often we call Skyss's web service. NB! Don't set it too low! | 30000 
-maxReloadInterval | Upper bound (MS) for the exponential backoff used after API errors. On failures the last good data stays on screen and the poll interval grows up to this value | 300000 
+humanizeTimeTreshold | If time to next journey is below this value, it will be displayed as "x minutes" instead of time. The correctly spelled `humanizeTimeThreshold` is accepted as an alias | 15
+serviceReloadInterval | Refresh rate in MS for how often we call Skyss's web service. NB! Don't set it too low! | 30000
+maxReloadInterval | Upper bound (MS) for the exponential backoff used after API errors. On failures the last good data stays on screen and the poll interval grows up to this value | 300000
 animationSpeed | How fast the animation changes when updating mirror - in milliseconds | 0  
 fade | Set this to true to fade list from light to dark | true  
 fadePoint | Start fading on 1/4th of the list | 0.25
@@ -66,14 +71,17 @@ useRealtime | Use realtime (DisplayTime) when available instead of only schedule
 debug | Enable verbose console logging for troubleshooting | false
 
 ## Skyss API v3 Migration (IMPORTANT)
+
 The module now uses the new Skyss API v3 endpoint:
 
-Endpoint: https://skyss.giantleap.no/v3/departures (HTTP POST)
+Endpoint: <https://skyss.giantleap.no/v3/departures> (HTTP POST)
 
 Old (deprecated) GET requests with `/public/departures?Hours=...&StopIdentifiers=...` are no longer used.
 
 ### New Request Body Format
+
 The request body sent to the API looks like this:
+
 ```json
 {
   "stopGroups": [
@@ -87,15 +95,20 @@ The request body sent to the API looks like this:
   ]
 }
 ```
+
 The module automatically builds this structure by grouping all configured stops by their `stopGroupId`.
 
 ### ID Shortcuts
+
 You may provide either:
+
 - Full IDs: `NSR:Quay:55861` / `NSR:StopPlace:32379`
 - Numeric only: `55861` / `32379` (prefixes are auto-added)
 
 ### Alternative Grouped Configuration
+
 Instead of listing each quay as a separate object you can group them:
+
 ```javascript
 stops: [
   {
@@ -104,13 +117,16 @@ stops: [
   }
 ]
 ```
+
 This produces the exact same request body as listing each quay separately.
 
 ## Stops
+
 You have to configure at least one stop. The module now uses the new Skyss v3 API which requires both a `stopId` (Quay ID) and a `stopGroupId` (StopPlace ID).
 
 ### How to find Stop (Quay) and Stop Group (StopPlace) IDs
-1. Go to https://avgangsvisning.skyss.no/
+
+1. Go to <https://avgangsvisning.skyss.no/>
 2. Add the stop(s) you are interested in so the live board loads.
 3. Open your browser Developer Tools (F12) and select the Network tab.
 4. (Optional) Reload the page or wait for data refresh.
@@ -123,6 +139,7 @@ You have to configure at least one stop. The module now uses the new Skyss v3 AP
 8. Copy the numeric parts or the full IDs for use in your configuration.
 
 Example extracted from payload:
+
 ```json
 {
   "stopGroups": [
@@ -133,21 +150,25 @@ Example extracted from payload:
   ]
 }
 ```
+
 Configuration using numeric shortcut:
+
 ```javascript
 stops: [
   { stopId: "55861", stopGroupId: "32379" },
   { stopId: "55863", stopGroupId: "32379" }
 ]
 ```
+
 Grouped form equivalent:
+
 ```javascript
 stops: [
   { stopGroupId: "32379", stopIds: ["55861", "55863"] }
 ]
 ```
 
-Stop option | Comment 
+Stop option | Comment
 ---|---
 stopId | Numeric Quay ID (e.g., `"55861"`) or full ID (e.g., `"NSR:Quay:55861"`)
 stopIds | (Alternative grouped config) Array of quay IDs belonging to the same stopGroupId
@@ -156,13 +177,16 @@ stopGroupId | Numeric StopPlace ID (e.g., `"32379"`) or full ID (e.g., `"NSR:Sto
 **Note:** Multiple quays usually share the same StopPlace. Always pair every quay with the correct stopGroupId or use the grouped form.
 
 ## Debugging
+
 Set `debug: true` in the module config to print:
+
 - Built request body & grouped stop structure
 - API response status (in node helper)
 - Number of passing times returned
 - Realtime vs scheduled selection per journey
 
 Example:
+
 ```javascript
 {
   module: 'MMM-Skyss',
@@ -176,22 +200,30 @@ Example:
 ```
 
 ## Behavior on errors and empty results
+
 - While the API is unreachable or returns malformed data, the **last good departures stay on screen** instead of the board going blank, and the next poll is delayed with exponential backoff up to `maxReloadInterval`.
 - A successful response with no upcoming departures shows **"No departures"**. "Loading…" is only shown before the very first successful response.
 
 ## Development
-The module itself has **no runtime dependencies** — end users never run `npm install`. The development tooling (ESLint, Prettier, and TypeScript for JSDoc `// @ts-check`) lives in `devDependencies`, so contributors install it once:
+
+The module itself has **no runtime dependencies** — end users never run `npm install`. The development tooling (ESLint, stylelint, markdownlint, Prettier, and TypeScript for JSDoc `// @ts-check`) lives in `devDependencies`, so contributors install it once:
+
 ```bash
 npm install
 ```
+
 Useful scripts:
+
 ```bash
 npm test            # unit tests (Node's built-in test runner, Node 18+)
 npm run lint        # ESLint
+npm run lint:css    # stylelint
+npm run lint:md     # markdownlint
 npm run format      # apply Prettier (use format:check to verify only)
 npm run typecheck   # tsc --checkJs via JSDoc / @ts-check
 ```
-Continuous integration runs all of the above (tests on Node 18/20/22, plus lint, format-check, type-check and `npm audit`) via GitHub Actions on every push and pull request.
+
+Continuous integration runs all of the above (tests on Node 18/20/22, plus ESLint, stylelint, markdownlint, format-check, type-check and `npm audit`) via GitHub Actions on every push and pull request. A husky pre-commit hook runs lint-staged on changed files.
 
 ## Translations
 
@@ -199,11 +231,12 @@ This modules is translated to the following languages:
 
 Language | Responsible
 ---|---
-nb (Norwegian) | Cato Antonsen
+nb (Norwegian Bokmål) | Cato Antonsen
+nn (Norwegian Nynorsk) | Community
 en (English) | Cato Antonsen
 
 If you add other languages, please make a PR or drop me a line!
 
 # Future enhancements
-1. Show deviations
-1. Add filter for departures that are too close to make
+
+1. Show deviations (needs the Skyss v3 deviation field names; not yet implemented)

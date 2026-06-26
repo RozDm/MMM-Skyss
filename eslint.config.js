@@ -38,8 +38,8 @@ module.exports = [
         // Project-wide rule tweaks. Style (var/quotes/spacing) is owned by Prettier;
         // here we keep correctness-oriented rules and treat the rest as advisory.
         rules: {
-            "no-unused-vars": ["warn", { args: "none" }],
-            eqeqeq: ["warn", "smart"]
+            "no-unused-vars": ["error", { args: "none" }],
+            eqeqeq: ["error", "smart"]
         }
     },
     eslintConfigPrettier
