@@ -7,7 +7,7 @@
 ![1](images/MMM-Skyss-1.png)
 ![2](images/MMM-Skyss-2.png)
 
-Current version is 2.3.0. See [changelog](CHANGELOG.md "Version history") for version history.
+Current version is 2.3.1. See [changelog](CHANGELOG.md "Version history") for version history.
 
 ## Installation
 
