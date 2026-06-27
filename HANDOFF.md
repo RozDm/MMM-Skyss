@@ -7,8 +7,8 @@ prior context**. For architecture, commands and conventions read
 
 ## Current state
 
-- **Version 2.3.0.** The module works and is fully covered by tooling.
-- **Green everywhere:** `npm test` (24 tests, Node 18/20/22), ESLint, stylelint,
+- **Version 2.3.2.** The module works and is fully covered by tooling.
+- **Green everywhere:** `npm test` (28 tests, Node 18/20/22), ESLint, stylelint,
   markdownlint, Prettier and `tsc --checkJs` all pass in CI.
 - **Zero runtime dependencies** (hard rule). All tooling is `devDependencies`;
   end users just `git clone` and run — there is no build step and no `npm install`.
@@ -32,6 +32,11 @@ through a pull request:
 - **Correctness fixes:** 12/24h time formatting, missing-`stops` crash guard,
   negative-minute display, `animationSpeed`, per-instance request-id correlation,
   exponential backoff, and a "No departures" state.
+- **Robustness / review hardening (2.3.1–2.3.2):** a per-request frontend timeout
+  so a lost helper response can't stall polling or leak the request map; the node
+  helper treats a non-2xx HTTP status as an error; deviation text is taken only
+  from non-empty string fields (no `[object Object]`); realtime "x min" no longer
+  adds a spurious minute; `stopIds` is validated as an array before use.
 - **Features:** `walkingTime` (hide departures too soon to catch); `showDeviations`
   (service messages from the API's top-level `Messages`); Norwegian Nynorsk (`nn`).
 - **Quality / infra:** unit tests (`node:test`), CI matrix, ESLint + Prettier +
@@ -44,10 +49,11 @@ through a pull request:
 
 - **Deviations need a real sample.** `showDeviations` reads the response's
   top-level `Messages` array, but every captured sample so far had it **empty**.
-  The text is extracted best-effort from common fields
-  (`Text` / `Message` / `Title` / `Description` / `Body` / `Value`). When a
-  disruption is actually live, capture the response with `debug: true` and use the
-  logged `Messages` JSON to confirm / refine the field names in `MMM-Skyss.js`
+  The text is extracted best-effort from the first **non-empty string** among the
+  common fields (`Text` / `Message` / `Title` / `Description` / `Body` / `Value`;
+  a localised object in one of them is ignored, as of 2.3.2). When a disruption is
+  actually live, capture the response with `debug: true` and use the logged
+  `Messages` JSON to confirm / refine the field names in `MMM-Skyss.js`
   (`getStopInfo`) and the test in `test/frontend.test.js`.
 - **Live verification.** The Skyss API is **egress-blocked from CI / sandboxes**,
   so the module can only be confirmed end to end on a real MagicMirror. Parsing has
