@@ -2,6 +2,11 @@
 const NodeHelper = require("node_helper");
 const https = require("node:https");
 
+// Reuse a single keep-alive agent so successive polls don't each pay a fresh TLS
+// handshake. Guarded because the test harness injects an https stub without Agent.
+const keepAliveAgent =
+    typeof https.Agent === "function" ? new https.Agent({ keepAlive: true, maxSockets: 4 }) : undefined;
+
 /** @type {Record<string, any>} */
 const helper = {
     start: function () {
@@ -32,6 +37,7 @@ const helper = {
             path: "/v3/departures",
             method: "POST",
             timeout: 15000,
+            agent: keepAliveAgent,
             headers: {
                 "Content-Type": "application/json",
                 "Content-Length": Buffer.byteLength(postData)

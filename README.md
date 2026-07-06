@@ -7,7 +7,7 @@
 ![1](images/MMM-Skyss-1.png)
 ![2](images/MMM-Skyss-2.png)
 
-Current version is 2.3.2. See [changelog](CHANGELOG.md "Version history") for version history.
+Current version is 2.4.0. See [changelog](CHANGELOG.md "Version history") for version history.
 
 ## Installation
 
@@ -227,7 +227,7 @@ npm run format      # apply Prettier (use format:check to verify only)
 npm run typecheck   # tsc --checkJs via JSDoc / @ts-check
 ```
 
-Continuous integration runs all of the above (tests on Node 18/20/22, plus ESLint, stylelint, markdownlint, format-check, type-check and `npm audit`) via GitHub Actions on every push and pull request. A husky pre-commit hook runs lint-staged on changed files. Pull requests are auto-merged into `main` once CI passes — mark a PR as a draft to prevent it.
+Continuous integration runs all of the above (tests on Node 20/22/24, plus ESLint, stylelint, markdownlint, format-check, type-check and `npm audit`) via GitHub Actions on every push and pull request. A husky pre-commit hook runs lint-staged on changed files. Pull requests are auto-merged into `main` once CI passes — mark a PR as a draft to prevent it.
 
 ## Translations
 
@@ -243,6 +243,6 @@ If you add another language, please open a pull request.
 
 # Deviations
 
-Service messages / deviations from Skyss (the response's top-level `Messages` array) are shown above the departures, so a disruption is visible even when nothing is running. Disable with `showDeviations: false`.
+Service messages / deviations from Skyss (the response's top-level `Messages` array) are shown above the departures with a warning icon and a distinct accent colour (separate from the orange used for realtime departure times), so a disruption is visible even when nothing is running. Disable with `showDeviations: false`.
 
 The `Messages` object shape is undocumented, so the text is extracted best-effort from common field names. If your live board shows a disruption that this module does not, capture the response with `debug: true` and open an issue with the `Messages` JSON so the extraction can be refined.

@@ -65,6 +65,10 @@ const Skyss = {
         this.requestSeq = 0;
         this.instanceId = (this.identifier || "skyss") + "-" + Math.random().toString(36).slice(2, 10);
 
+        // The configured stops never change at runtime, so the request body is
+        // built once (lazily, on the first poll) and cached here.
+        this._requestBody = undefined;
+
         // Set locale and time format based on global config
         if (config.timeFormat === 24) {
             this.config.timeFormat = "HH:mm";
@@ -89,13 +93,18 @@ const Skyss = {
         var wrapper = document.createElement("div");
 
         // Service messages / deviations (when enabled and present), shown above the
-        // departures so a disruption is visible even when nothing is running.
+        // departures so a disruption is visible even when nothing is running. Each
+        // line carries a warning icon and its own accent so it is not confused with
+        // the (orange) realtime highlighting on departure times.
         if (this.config.showDeviations && this.deviations && this.deviations.length > 0) {
             var devBox = document.createElement("div");
             devBox.className = "skyss-deviations xsmall";
             for (var d = 0; d < this.deviations.length; d++) {
                 var devLine = document.createElement("div");
                 devLine.className = "skyss-deviation";
+                var devIcon = document.createElement("span");
+                devIcon.className = "skyss-deviation-icon fa fa-exclamation-triangle";
+                devLine.appendChild(devIcon);
                 devLine.appendChild(document.createTextNode(this.deviations[d]));
                 devBox.appendChild(devLine);
             }
@@ -136,9 +145,10 @@ const Skyss = {
             wrapper.appendChild(table);
         } else {
             var message = document.createElement("div");
-            // "Loading" until the first successful poll, then "no departures".
-            message.innerHTML = this.translate(this.hasLoaded ? "NODEPARTURES" : "LOADING");
             message.className = "small dimmed";
+            // "Loading" until the first successful poll, then "no departures".
+            // Rendered as text (not innerHTML) since it is plain, translated copy.
+            message.textContent = this.translate(this.hasLoaded ? "NODEPARTURES" : "LOADING");
             wrapper.appendChild(message);
         }
 
@@ -175,7 +185,7 @@ const Skyss = {
         if (this.config.debug) console.log("[MMM-Skyss][DEBUG] Starting poll for departure data");
 
         // A lost response can never stall the self-scheduling chain: every request
-        // has a frontend timeout (see HttpClient) that surfaces an error, so this
+        // has a frontend timeout (see sendRequest) that surfaces an error, so this
         // callback always runs and always schedules the next poll.
         this.getStopInfo(this.config.stops, function (err, result) {
             if (err) {
@@ -222,152 +232,19 @@ const Skyss = {
     getStopInfo: function (stopItems, callback) {
         var self = this;
 
-        var HttpClient = function () {
-            this.get = function (requestBody, requestCallback) {
-                var id = self.instanceId + ":" + ++self.requestSeq;
-                // Safety net: if the node helper's response is ever lost, drop the
-                // pending entry (so the request map can't leak) and surface an error
-                // so polling reschedules. Must exceed the helper's own 15s timeout.
-                // The timer is cleared in socketNotificationReceived once a response
-                // arrives, and unref()'d so a pending safety-net timer never by
-                // itself keeps the runtime alive (unref is a no-op in the browser,
-                // where setTimeout returns a number).
-                var timer = setTimeout(function () {
-                    if (!self.requests[id]) return;
-                    delete self.requests[id];
-                    if (self.config.debug) console.log("[MMM-Skyss][DEBUG] No response for", id, "- timing out");
-                    requestCallback("request timed out", null);
-                }, 30000);
-                if (timer && typeof timer.unref === "function") timer.unref();
-                self.requests[id] = { callback: requestCallback, timer: timer };
-                self.sendSocketNotification("getstop", { id: id, body: requestBody, debug: self.config.debug });
-            };
-        };
+        // Build the request body once and reuse it: the stops config is static.
+        if (this._requestBody === undefined) {
+            this._requestBody = this.buildRequestBody(stopItems);
+        }
+        var requestBody = this._requestBody;
 
-        //DisplayTime contains realtime-information. Formatted as "x min"(remaining time), or "HH:mm"
-        /**
-         * Parse Skyss' realtime "DisplayTime" ("x min" or "HH:mm") into a moment.
-         * @param {string} displayTime
-         * @returns {any} a moment instance, or undefined if unrecognised
-         */
-        var processSkyssDisplaytime = function (displayTime) {
-            var realTime;
-            var regexInMinutes = new RegExp("([0-9]+) min");
-            var regexLocalTimeStamp = new RegExp("[0-9]{2}:[0-9]{2}");
-
-            //Time format is "x min"
-            if (regexInMinutes.test(displayTime)) {
-                var inMinutes = parseInt(displayTime.match(regexInMinutes)[1], 10);
-
-                // "x min" is the realtime estimate of whole minutes until departure.
-                realTime = moment().add(inMinutes, "minutes");
-
-                //Time format is "HH:mm".
-            } else if (regexLocalTimeStamp.test(displayTime)) {
-                realTime = moment(displayTime, "HH:mm");
-
-                //Time is next day
-                if (realTime.isBefore(moment())) {
-                    realTime.add(1, "day");
-                }
-            }
-            return realTime;
-        };
-
-        /**
-         * Build the v3 `/departures` request body by grouping configured stops by
-         * stopGroupId and normalising ids to the `NSR:` form.
-         * @returns {{ stopGroups: Array<{id: string, stops: Array<{id: string}>}> }}
-         */
-        var buildRequestBody = function () {
-            // Helper function to add NSR prefix if not present
-            const normalizeId = function (id, type) {
-                if (!id) return undefined;
-                if (id.startsWith && id.startsWith("NSR:")) return id;
-                return "NSR:" + type + ":" + id;
-            };
-
-            const stopGroupsMap = {}; // key = groupId
-
-            // Guard against a missing/invalid `stops` config (undefined, null, non-array)
-            const items = Array.isArray(stopItems) ? stopItems : [];
-
-            for (let i = 0; i < items.length; i++) {
-                const item = items[i];
-
-                // Support alternative grouped config form: { stopGroupId: "32383", stopIds: ["55869", "55870"] }
-                if (Array.isArray(item.stopIds) && item.stopGroupId) {
-                    const groupId = normalizeId(item.stopGroupId, "StopPlace");
-                    if (!groupId) {
-                        console.warn("[MMM-Skyss] Skipping grouped entry without valid stopGroupId", item);
-                        continue;
-                    }
-                    if (!stopGroupsMap[groupId]) {
-                        stopGroupsMap[groupId] = { id: groupId, stops: [] };
-                    }
-                    item.stopIds.forEach((rawStopId) => {
-                        const stopId = normalizeId(rawStopId, "Quay");
-                        if (stopId) {
-                            stopGroupsMap[groupId].stops.push({ id: stopId });
-                        } else {
-                            console.warn("[MMM-Skyss] Skipping invalid stopId in grouped entry", rawStopId);
-                        }
-                    });
-                    continue; // proceed to next config item
-                }
-
-                // Original form: { stopId: "55863", stopGroupId: "32379" }
-                const rawGroupId = item.stopGroupId;
-                const rawStopId = item.stopId;
-
-                if (!rawGroupId) {
-                    console.warn("[MMM-Skyss] Missing stopGroupId for stop entry. This stop will be skipped:", item);
-                    continue;
-                }
-                if (!rawStopId) {
-                    console.warn("[MMM-Skyss] Missing stopId for stop entry. This stop will be skipped:", item);
-                    continue;
-                }
-
-                const groupId = normalizeId(rawGroupId, "StopPlace");
-                const stopId = normalizeId(rawStopId, "Quay");
-
-                if (!stopGroupsMap[groupId]) {
-                    stopGroupsMap[groupId] = { id: groupId, stops: [] };
-                }
-                stopGroupsMap[groupId].stops.push({ id: stopId });
-            }
-
-            const stopGroupsArray = Object.values(stopGroupsMap);
-
-            // Additional safeguard: remove groups without id or with no stops
-            const filtered = stopGroupsArray.filter((g) => g.id && g.stops.length > 0);
-
-            if (filtered.length === 0) {
-                if (self.config.debug)
-                    console.log(
-                        "[MMM-Skyss][DEBUG] No valid stop groups constructed from configuration. Check your stops config."
-                    );
-            } else if (self.config.debug) {
-                console.log("[MMM-Skyss][DEBUG] Constructed request body with", filtered.length, "group(s).");
-                filtered.forEach((g) =>
-                    console.log("[MMM-Skyss][DEBUG] Group", g.id, "stops:", g.stops.map((s) => s.id).join(", "))
-                );
-            }
-
-            return { stopGroups: filtered };
-        };
-
-        var requestBody = buildRequestBody();
         if (!requestBody.stopGroups || requestBody.stopGroups.length === 0) {
             if (self.config.debug) console.log("[MMM-Skyss][DEBUG] No valid stops configured; skipping API call.");
             callback(null, []);
             return;
         }
 
-        var client = new HttpClient();
-
-        client.get(requestBody, function (err, stopResponse) {
+        this.sendRequest(requestBody, function (err, stopResponse) {
             if (err) {
                 if (self.config.debug) console.log("[MMM-Skyss][DEBUG] Request failed:", err);
                 callback(err, []);
@@ -405,8 +282,12 @@ const Skyss = {
                 var stop = departure.Stops[journey.StopIdentifier] || {};
                 var timestamp;
 
-                var realtimeStamp = processSkyssDisplaytime(journey.DisplayTime);
-                if (self.config.useRealtime && moment.isMoment(realtimeStamp)) {
+                var realtimeStamp = self.processSkyssDisplaytime(journey.DisplayTime);
+                // Whether we actually used a realtime estimate for this departure.
+                // Drives the realtime accent in the table, so scheduled times are not
+                // highlighted as realtime when useRealtime is off or unavailable.
+                var usedRealtime = self.config.useRealtime && moment.isMoment(realtimeStamp);
+                if (usedRealtime) {
                     timestamp = realtimeStamp.toISOString();
                     if (self.config.debug)
                         console.log(
@@ -438,6 +319,7 @@ const Skyss = {
                         Timestamp: timestamp,
                         Status: journey.Status
                     },
+                    usedRealtime: usedRealtime,
                     platform: journey.Platform || ""
                 });
             }
@@ -468,6 +350,146 @@ const Skyss = {
             if (self.config.debug) console.log("[MMM-Skyss][DEBUG] Processed", allStopItems.length, "stop items");
             callback(null, allStopItems);
         });
+    },
+
+    /**
+     * Build the v3 `/departures` request body by grouping configured stops by
+     * stopGroupId and normalising ids to the `NSR:` form.
+     * @param {Array<Object>} stopItems the `stops` config array
+     * @returns {{ stopGroups: Array<{id: string, stops: Array<{id: string}>}> }}
+     */
+    buildRequestBody: function (stopItems) {
+        var self = this;
+
+        // Helper function to add NSR prefix if not present
+        const normalizeId = function (id, type) {
+            if (!id) return undefined;
+            if (id.startsWith && id.startsWith("NSR:")) return id;
+            return "NSR:" + type + ":" + id;
+        };
+
+        const stopGroupsMap = {}; // key = groupId
+
+        // Guard against a missing/invalid `stops` config (undefined, null, non-array)
+        const items = Array.isArray(stopItems) ? stopItems : [];
+
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+
+            // Support alternative grouped config form: { stopGroupId: "32383", stopIds: ["55869", "55870"] }
+            if (Array.isArray(item.stopIds) && item.stopGroupId) {
+                const groupId = normalizeId(item.stopGroupId, "StopPlace");
+                if (!groupId) {
+                    console.warn("[MMM-Skyss] Skipping grouped entry without valid stopGroupId", item);
+                    continue;
+                }
+                if (!stopGroupsMap[groupId]) {
+                    stopGroupsMap[groupId] = { id: groupId, stops: [] };
+                }
+                item.stopIds.forEach((rawStopId) => {
+                    const stopId = normalizeId(rawStopId, "Quay");
+                    if (stopId) {
+                        stopGroupsMap[groupId].stops.push({ id: stopId });
+                    } else {
+                        console.warn("[MMM-Skyss] Skipping invalid stopId in grouped entry", rawStopId);
+                    }
+                });
+                continue; // proceed to next config item
+            }
+
+            // Original form: { stopId: "55863", stopGroupId: "32379" }
+            const rawGroupId = item.stopGroupId;
+            const rawStopId = item.stopId;
+
+            if (!rawGroupId) {
+                console.warn("[MMM-Skyss] Missing stopGroupId for stop entry. This stop will be skipped:", item);
+                continue;
+            }
+            if (!rawStopId) {
+                console.warn("[MMM-Skyss] Missing stopId for stop entry. This stop will be skipped:", item);
+                continue;
+            }
+
+            const groupId = normalizeId(rawGroupId, "StopPlace");
+            const stopId = normalizeId(rawStopId, "Quay");
+
+            if (!stopGroupsMap[groupId]) {
+                stopGroupsMap[groupId] = { id: groupId, stops: [] };
+            }
+            stopGroupsMap[groupId].stops.push({ id: stopId });
+        }
+
+        const stopGroupsArray = Object.values(stopGroupsMap);
+
+        // Additional safeguard: remove groups without id or with no stops
+        const filtered = stopGroupsArray.filter((g) => g.id && g.stops.length > 0);
+
+        if (filtered.length === 0) {
+            if (self.config.debug)
+                console.log(
+                    "[MMM-Skyss][DEBUG] No valid stop groups constructed from configuration. Check your stops config."
+                );
+        } else if (self.config.debug) {
+            console.log("[MMM-Skyss][DEBUG] Constructed request body with", filtered.length, "group(s).");
+            filtered.forEach((g) =>
+                console.log("[MMM-Skyss][DEBUG] Group", g.id, "stops:", g.stops.map((s) => s.id).join(", "))
+            );
+        }
+
+        return { stopGroups: filtered };
+    },
+
+    /**
+     * Parse Skyss' realtime "DisplayTime" ("x min" or "HH:mm") into a moment.
+     * @param {string} displayTime
+     * @returns {any} a moment instance, or undefined if unrecognised
+     */
+    processSkyssDisplaytime: function (displayTime) {
+        var realTime;
+        var regexInMinutes = new RegExp("([0-9]+) min");
+        var regexLocalTimeStamp = new RegExp("[0-9]{2}:[0-9]{2}");
+
+        // Time format is "x min": the realtime estimate of whole minutes to departure.
+        if (regexInMinutes.test(displayTime)) {
+            var inMinutes = parseInt(displayTime.match(regexInMinutes)[1], 10);
+            realTime = moment().add(inMinutes, "minutes");
+
+            // Time format is "HH:mm".
+        } else if (regexLocalTimeStamp.test(displayTime)) {
+            realTime = moment(displayTime, "HH:mm");
+
+            // Time is next day
+            if (realTime.isBefore(moment())) {
+                realTime.add(1, "day");
+            }
+        }
+        return realTime;
+    },
+
+    /**
+     * Send a request body to the node helper, tagged with a unique per-instance id
+     * so only the issuing instance consumes the broadcast response. A safety-net
+     * timeout drops the pending entry and surfaces an error if the helper's response
+     * is ever lost (so polling reschedules and the request map can't leak). It must
+     * exceed the helper's own 15s timeout, is cleared in socketNotificationReceived
+     * once a response arrives, and is unref()'d so a pending timer never by itself
+     * keeps the runtime alive (unref is a no-op in the browser, where setTimeout
+     * returns a number).
+     * @param {Object} requestBody
+     * @param {(err: any, response: any) => void} requestCallback
+     */
+    sendRequest: function (requestBody, requestCallback) {
+        var self = this;
+        var id = self.instanceId + ":" + ++self.requestSeq;
+        var timer = setTimeout(function () {
+            if (!self.requests[id]) return;
+            delete self.requests[id];
+            if (self.config.debug) console.log("[MMM-Skyss][DEBUG] No response for", id, "- timing out");
+            requestCallback("request timed out", null);
+        }, 30000);
+        if (timer && typeof timer.unref === "function") timer.unref();
+        self.requests[id] = { callback: requestCallback, timer: timer };
+        self.sendSocketNotification("getstop", { id: id, body: requestBody, debug: self.config.debug });
     },
 
     getTableHeaderRow: function () {
@@ -526,7 +548,9 @@ const Skyss = {
                 imageFA = "train";
                 break;
             default:
-                imageFA = "rocket";
+                // Neutral fallback for an unrecognised service mode (a bus reads as a
+                // generic transit glyph on the board, unlike the old "rocket").
+                imageFA = "bus";
                 break;
         }
         tdIcon.className = "fa fa-" + imageFA;
@@ -553,7 +577,9 @@ const Skyss = {
         }
 
         var tdTime = document.createElement("td");
-        if (journey.time.Status !== "Schedule") {
+        // Accent the time only when a realtime estimate was actually used, not merely
+        // because the API Status is not "Schedule".
+        if (journey.usedRealtime) {
             tdTime.className = "time light sanntid";
         } else {
             tdTime.className = "time light";

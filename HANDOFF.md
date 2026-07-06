@@ -7,8 +7,8 @@ prior context**. For architecture, commands and conventions read
 
 ## Current state
 
-- **Version 2.3.2.** The module works and is fully covered by tooling.
-- **Green everywhere:** `npm test` (28 tests, Node 18/20/22), ESLint, stylelint,
+- **Version 2.4.0.** The module works and is fully covered by tooling.
+- **Green everywhere:** `npm test` (32 tests, Node 20/22/24), ESLint, stylelint,
   markdownlint, Prettier and `tsc --checkJs` all pass in CI.
 - **Zero runtime dependencies** (hard rule). All tooling is `devDependencies`;
   end users just `git clone` and run — there is no build step and no `npm install`.

@@ -1,5 +1,12 @@
 /* MMM-Skyss */
 
+.skyss {
+  /* Accents are centralised and theme-friendly: realtime is the classic Skyss
+     orange, deviations use a distinct warning red so the two are never confused. */
+  --skyss-accent-realtime: rgb(231 149 35);
+  --skyss-accent-deviation: rgb(224 82 70);
+}
+
 table.skyss {
   width: 100%;
   border: 1px;
@@ -12,12 +19,10 @@ table.skyss th {
 }
 
 table.skyss thead {
-  border-bottom: 1px solid rgb(255 255 255 / 73.3%);
+  /* Derive the divider from the theme's text colour instead of hard-coded white. */
+  border-bottom: 1px solid var(--color-text-dimmed, rgb(255 255 255 / 73.3%));
 }
 
-/* table.skyss td {
-  border-left: 1px solid rgba(255, 255, 255, 0.685);
-} */
 .skyss .line {
   padding-right: 5px;
 }
@@ -33,7 +38,7 @@ table.skyss thead {
 }
 
 .sanntid {
-  color: rgb(231 149 35);
+  color: var(--skyss-accent-realtime, rgb(231 149 35));
   font-weight: bold;
 }
 
@@ -42,9 +47,16 @@ table.skyss thead {
 }
 
 .skyss-deviations {
+  /* Re-declare the accent here since this block is a sibling of table.skyss. */
+  --skyss-accent-deviation: rgb(224 82 70);
+
   margin-bottom: 4px;
 }
 
 .skyss-deviation {
-  color: rgb(231 149 35);
+  color: var(--skyss-accent-deviation, rgb(224 82 70));
+}
+
+.skyss-deviation-icon {
+  margin-right: 4px;
 }

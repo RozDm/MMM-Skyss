@@ -5,13 +5,17 @@ on:
     branches: [main]
   pull_request:
 
+# Least privilege: CI only needs to read the repository contents.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        node-version: [18.x, 20.x, 22.x]
+        node-version: [20.x, 22.x, 24.x]
     steps:
       - uses: actions/checkout@v4
 
@@ -33,14 +37,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Use Node.js 20.x
+      - name: Use Node.js 22.x
         uses: actions/setup-node@v4
         with:
-          node-version: 20.x
+          node-version: 22.x
           cache: npm
 
+      # --ignore-scripts: dev tooling needs no lifecycle scripts, and skipping them
+      # removes a supply-chain vector when installing devDependencies in CI.
       - name: Install dev dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Lint
         run: npm run lint
@@ -57,5 +63,5 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
-      - name: Audit production dependencies
-        run: npm audit --omit=dev || true
+      - name: Audit dependencies
+        run: npm audit --audit-level=high

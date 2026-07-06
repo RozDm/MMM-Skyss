@@ -1,5 +1,17 @@
 # MMM-Skyss Change Log
 
+## [2.4.0] - 2026-07-06
+
+- Fix: realtime highlighting is now applied based on whether a realtime estimate was actually used, not on the API `Status` field. With `useRealtime: false` (or when no realtime is available) a scheduled time is no longer shown with the realtime accent.
+- UX: service deviations now render with a warning icon (`fa-exclamation-triangle`) and a distinct accent colour, so a disruption is no longer confused with the orange realtime highlighting on departure times.
+- UX: the fallback icon for an unrecognised transport mode is a bus instead of a rocket.
+- UX: colours are now theme-friendly — the realtime and deviation accents are CSS custom properties (with fallbacks) and the header divider derives from the theme's text colour, so the module fits non-default MagicMirror themes.
+- Security: CI runs under least-privilege `permissions: contents: read`; `npm ci` installs devDependencies with `--ignore-scripts`; and `npm audit` now fails the build on high/critical advisories instead of being a no-op.
+- Cleanup: the "Loading"/"No departures" message is rendered with `textContent` instead of `innerHTML`.
+- Performance/cleanup: the request body is built once and cached instead of being rebuilt on every poll; `buildRequestBody`, `processSkyssDisplaytime` and the request sender are module methods (defined once) rather than being recreated per poll, replacing the old `HttpClient` shim; and the node helper reuses a keep-alive HTTPS agent across polls.
+- Infra: added an `engines` floor (Node >= 18); the CI test matrix now runs Node 20/22/24 (dropping end-of-life 18) and the quality job runs on Node 22; added `SECURITY.md`; and a `version` npm script keeps the README version line in sync with `package.json`.
+- Tests: added coverage for the node-helper request timeout, the frontend 30-second lost-response safety-net timeout, the realtime-vs-scheduled accent, and translation-key parity across `en`/`nb`/`nn` (28 → 32 tests).
+
 ## [2.3.2] - 2026-06-26
 
 - Fix: deviation messages whose text field is an object (e.g. a localised `{nb, en}` map) no longer render as `[object Object]`. Message text is now taken only from the first non-empty string among the common field names; entries with no usable string are skipped.
