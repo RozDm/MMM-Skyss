@@ -25,7 +25,10 @@
     "Hordaland",
     "public-transport"
   ],
-  "author": "Cato Antonsen",
+  "author": "RozDm (https://github.com/RozDm)",
+  "contributors": [
+    "Cato Antonsen (https://github.com/CatoAntonsen)"
+  ],
   "license": "MIT",
   "lint-staged": {
     "*.js": [
