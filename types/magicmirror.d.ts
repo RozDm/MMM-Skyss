@@ -6,7 +6,6 @@ declare const Module: any;
 declare const Log: any;
 declare const MM: any;
 declare const config: any;
-declare const moment: any;
 
 declare module "node_helper" {
     const NodeHelper: any;

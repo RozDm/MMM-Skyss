@@ -1,5 +1,12 @@
 # MMM-Skyss Change Log
 
+## [2.5.0] - 2026-07-06
+
+- Dependency currency: the frontend no longer uses the MagicMirror `moment` global. Time parsing (`processSkyssDisplaytime`) and formatting (`formatClock`, 12/24h) are now done with the native `Date`, removing reliance on a deprecated, maintenance-only library. Behaviour is unchanged.
+- Performance/cleanup: the `DisplayTime` matchers are compiled once as module constants instead of on every departure, and the node helper collects response chunks in an array and joins once (instead of repeated string concatenation, which is quadratic on large responses).
+- Infra: raised the `engines` floor to Node >= 20 (18 is end-of-life), and bumped the CI actions to `actions/checkout@v7` and `actions/setup-node@v6`.
+- Tests: added coverage for `processSkyssDisplaytime` ("x min", "HH:mm" next-day rollover, and unrecognised input); the `moment` test stub is gone (32 → 35 tests).
+
 ## [2.4.0] - 2026-07-06
 
 - Fix: realtime highlighting is now applied based on whether a realtime estimate was actually used, not on the API `Status` field. With `useRealtime: false` (or when no realtime is available) a scheduled time is no longer shown with the realtime accent.

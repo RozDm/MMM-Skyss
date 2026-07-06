@@ -317,6 +317,29 @@ test("getStopInfo: realtime 'x min' uses x minutes (no +1 fudge)", () => {
     assert.strictEqual(items[0].usedRealtime, true, "realtime estimate marks the item as realtime");
 });
 
+test("processSkyssDisplaytime: '5 min' -> ~5 minutes from now as a Date", () => {
+    const ctx = makeInstance(def);
+    const d = ctx.processSkyssDisplaytime("5 min");
+    assert.ok(d instanceof Date && !isNaN(d.getTime()));
+    const minutes = (d.getTime() - Date.now()) / 60000;
+    assert.ok(minutes > 4.5 && minutes <= 5.05, "expected ~5 minutes, got " + minutes);
+});
+
+test("processSkyssDisplaytime: 'HH:mm' already past today rolls to tomorrow", () => {
+    const ctx = makeInstance(def);
+    const past = new Date(Date.now() - 60 * 60000); // an hour ago
+    const rolled = ctx.processSkyssDisplaytime(pad(past.getHours()) + ":" + pad(past.getMinutes()));
+    assert.ok(rolled instanceof Date && !isNaN(rolled.getTime()));
+    assert.ok(rolled.getTime() > Date.now(), "a clock time already past today rolls to tomorrow");
+    assert.strictEqual(rolled.getHours(), past.getHours());
+});
+
+test("processSkyssDisplaytime: unrecognised DisplayTime -> undefined", () => {
+    const ctx = makeInstance(def);
+    assert.strictEqual(ctx.processSkyssDisplaytime("soon"), undefined);
+    assert.strictEqual(ctx.processSkyssDisplaytime(undefined), undefined);
+});
+
 test("getStopInfo: a non-array stopIds is skipped, not crashed", () => {
     const ctx = makeInstance(def, { stops: [{ stopGroupId: "32379", stopIds: "55861" }] });
     let cbArgs;

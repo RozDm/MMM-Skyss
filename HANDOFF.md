@@ -7,8 +7,8 @@ prior context**. For architecture, commands and conventions read
 
 ## Current state
 
-- **Version 2.4.0.** The module works and is fully covered by tooling.
-- **Green everywhere:** `npm test` (32 tests, Node 20/22/24), ESLint, stylelint,
+- **Version 2.5.0.** The module works and is fully covered by tooling.
+- **Green everywhere:** `npm test` (35 tests, Node 20/22/24), ESLint, stylelint,
   markdownlint, Prettier and `tsc --checkJs` all pass in CI.
 - **Zero runtime dependencies** (hard rule). All tooling is `devDependencies`;
   end users just `git clone` and run — there is no build step and no `npm install`.
@@ -65,6 +65,6 @@ through a pull request:
 ## Gotchas (full list in CLAUDE.md)
 
 - The Skyss endpoint is **POST-only** and not reachable from CI.
-- `moment` is a MagicMirror global, not a dependency.
+- Time formatting uses the native `Date` (no `moment` global anymore).
 - `humanizeTimeTreshold` is misspelled but frozen for config back-compat
   (`humanizeTimeThreshold` is accepted as an alias).

@@ -67,7 +67,9 @@ Fork / outside-contributor PRs are not auto-merged.
 
 ## Gotchas
 
-- `moment` is provided globally by MagicMirror — it is not a dependency.
+- Time formatting uses the native `Date` — the module no longer relies on the
+  MagicMirror `moment` global. `formatClock` produces the 12/24h clock string and
+  `processSkyssDisplaytime` parses Skyss' `DisplayTime` ("x min" / "HH:mm").
 - The Skyss endpoint is **POST-only**; opening it in a browser (a GET) returns a
   `TEMPORARY_ERROR`. It is also **not reachable from CI / sandboxes**
   (egress-blocked), so the module can only be verified live on a real mirror.
@@ -80,5 +82,6 @@ Fork / outside-contributor PRs are not auto-merged.
 
 ## Releasing
 
-Bump `version` in `package.json`, add a `CHANGELOG.md` entry, and update the
-"Current version is X" line in `README.md`.
+Bump `version` in `package.json` (or run `npm version <patch|minor|major>`, whose
+`version` script syncs the "Current version is X" line in `README.md` via
+`scripts/sync-version.js`) and add a `CHANGELOG.md` entry.
