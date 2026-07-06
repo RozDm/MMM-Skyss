@@ -15,6 +15,10 @@ const { EventEmitter } = require("node:events");
 let lastReq = null;
 function fakeHttps() {
     return {
+        // node_helper creates a keep-alive agent at load time.
+        Agent: function (opts) {
+            this.options = opts;
+        },
         request(options, responseHandler) {
             const req = new EventEmitter();
             req.destroyed = false;
@@ -102,4 +106,14 @@ test("node_helper: reports a non-2xx HTTP status as an error", () => {
     ctx.socketNotificationReceived("getstop", { id: "req-5", body: {}, debug: false });
     lastReq._respond(fakeResponse(503));
     assert.deepStrictEqual(ctx._sent, [{ n: "getstop", p: { id: "req-5", err: "HTTP 503" } }]);
+});
+
+test("node_helper: reports a request timeout as an error", () => {
+    const ctx = makeHelperCtx();
+    ctx.socketNotificationReceived("getstop", { id: "req-6", body: {}, debug: false });
+    // The socket timing out destroys the request with a "Request timed out" error,
+    // which the error handler surfaces (tagged with the same id).
+    lastReq.emit("timeout");
+    assert.strictEqual(lastReq.destroyed, true, "request destroyed on timeout");
+    assert.deepStrictEqual(ctx._sent, [{ n: "getstop", p: { id: "req-6", err: "Request timed out" } }]);
 });

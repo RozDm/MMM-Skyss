@@ -27,7 +27,7 @@ module.exports = [
     },
     {
         // Node helper, tests and tooling — run in Node.
-        files: ["node_helper.js", "test/**/*.js", "eslint.config.js"],
+        files: ["node_helper.js", "test/**/*.js", "eslint.config.js", "scripts/**/*.js"],
         languageOptions: {
             ecmaVersion: 2021,
             sourceType: "commonjs",
