@@ -60,7 +60,7 @@ const helper = {
             }
 
             res.setEncoding("utf8");
-            var data = "";
+            var chunks = [];
             var size = 0;
             var aborted = false;
             res.on("data", (chunk) => {
@@ -72,11 +72,14 @@ const helper = {
                     req.destroy(new Error("Response too large"));
                     return;
                 }
-                data = data.concat(chunk);
+                // Collect chunks and join once at the end instead of repeatedly
+                // concatenating strings (which is quadratic on large responses).
+                chunks.push(chunk);
             });
 
             res.on("end", () => {
                 if (aborted) return;
+                var data = chunks.join("");
                 if (debug) {
                     console.log("[MMM-Skyss] API response received, data length:", data.length);
                     console.log("[MMM-Skyss] Response preview:", data.substring(0, 200) + "...");

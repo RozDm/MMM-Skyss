@@ -7,7 +7,7 @@
 ![1](images/MMM-Skyss-1.png)
 ![2](images/MMM-Skyss-2.png)
 
-Current version is 2.4.0. See [changelog](CHANGELOG.md "Version history") for version history.
+Current version is 2.5.0. See [changelog](CHANGELOG.md "Version history") for version history.
 
 ## Installation
 
@@ -219,7 +219,7 @@ npm install
 Useful scripts:
 
 ```bash
-npm test            # unit tests (Node's built-in test runner, Node 18+)
+npm test            # unit tests (Node's built-in test runner, Node 20+)
 npm run lint        # ESLint
 npm run lint:css    # stylelint
 npm run lint:md     # markdownlint

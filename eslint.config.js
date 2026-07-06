@@ -20,8 +20,7 @@ module.exports = [
                 Module: "readonly",
                 Log: "readonly",
                 MM: "readonly",
-                config: "readonly",
-                moment: "readonly"
+                config: "readonly"
             }
         }
     },

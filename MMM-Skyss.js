@@ -6,6 +6,11 @@
  * MIT Licensed.
  */
 
+// Skyss "DisplayTime" is either "x min" (realtime minutes to departure) or a
+// "HH:mm" clock time. Compile the matchers once instead of per departure.
+const SKYSS_MINUTES_RE = /([0-9]+) min/;
+const SKYSS_CLOCK_RE = /([0-9]{2}):([0-9]{2})/;
+
 /**
  * MagicMirror module definition. Typed loosely as a string-keyed record because
  * MagicMirror injects many members at runtime (translate, sendSocketNotification,
@@ -286,7 +291,8 @@ const Skyss = {
                 // Whether we actually used a realtime estimate for this departure.
                 // Drives the realtime accent in the table, so scheduled times are not
                 // highlighted as realtime when useRealtime is off or unavailable.
-                var usedRealtime = self.config.useRealtime && moment.isMoment(realtimeStamp);
+                var usedRealtime =
+                    self.config.useRealtime && realtimeStamp instanceof Date && !isNaN(realtimeStamp.getTime());
                 if (usedRealtime) {
                     timestamp = realtimeStamp.toISOString();
                     if (self.config.debug)
@@ -440,30 +446,31 @@ const Skyss = {
     },
 
     /**
-     * Parse Skyss' realtime "DisplayTime" ("x min" or "HH:mm") into a moment.
+     * Parse Skyss' realtime "DisplayTime" ("x min" or "HH:mm") into a Date.
      * @param {string} displayTime
-     * @returns {any} a moment instance, or undefined if unrecognised
+     * @returns {Date|undefined} the departure time, or undefined if unrecognised
      */
     processSkyssDisplaytime: function (displayTime) {
-        var realTime;
-        var regexInMinutes = new RegExp("([0-9]+) min");
-        var regexLocalTimeStamp = new RegExp("[0-9]{2}:[0-9]{2}");
+        if (typeof displayTime !== "string") return undefined;
 
-        // Time format is "x min": the realtime estimate of whole minutes to departure.
-        if (regexInMinutes.test(displayTime)) {
-            var inMinutes = parseInt(displayTime.match(regexInMinutes)[1], 10);
-            realTime = moment().add(inMinutes, "minutes");
-
-            // Time format is "HH:mm".
-        } else if (regexLocalTimeStamp.test(displayTime)) {
-            realTime = moment(displayTime, "HH:mm");
-
-            // Time is next day
-            if (realTime.isBefore(moment())) {
-                realTime.add(1, "day");
-            }
+        // "x min": the realtime estimate of whole minutes until departure.
+        var minutesMatch = displayTime.match(SKYSS_MINUTES_RE);
+        if (minutesMatch) {
+            return new Date(Date.now() + parseInt(minutesMatch[1], 10) * 60000);
         }
-        return realTime;
+
+        // "HH:mm": a clock time today, rolled to tomorrow if it has already passed.
+        var clockMatch = displayTime.match(SKYSS_CLOCK_RE);
+        if (clockMatch) {
+            var when = new Date();
+            when.setHours(parseInt(clockMatch[1], 10), parseInt(clockMatch[2], 10), 0, 0);
+            if (when.getTime() < Date.now()) {
+                when.setDate(when.getDate() + 1);
+            }
+            return when;
+        }
+
+        return undefined;
     },
 
     /**
@@ -623,7 +630,29 @@ const Skyss = {
             }
         }
         // Honour the 12/24h format derived from the global config in start()
-        return moment(tti).format(this.config.timeFormat);
+        return this.formatClock(tti);
+    },
+
+    /**
+     * Format a Date as a clock time honouring the configured 12/24-hour format
+     * ("HH:mm" or "h:mm A"), without depending on the `moment` global.
+     * @param {Date} date
+     * @returns {string}
+     */
+    formatClock: function (date) {
+        var hours = date.getHours();
+        var minutes = date.getMinutes();
+        var mm = minutes < 10 ? "0" + minutes : "" + minutes;
+
+        if (this.config.timeFormat === "HH:mm") {
+            var hh = hours < 10 ? "0" + hours : "" + hours;
+            return hh + ":" + mm;
+        }
+
+        // 12-hour "h:mm A"
+        var suffix = hours >= 12 ? "PM" : "AM";
+        var hour12 = hours % 12 || 12;
+        return hour12 + ":" + mm + " " + suffix;
     },
 
     socketNotificationReceived: function (notification, payload) {
