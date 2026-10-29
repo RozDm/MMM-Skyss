@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+    # ready_for_review: marking a draft ready runs CI, so a green PR then auto-merges.
+    types: [opened, synchronize, reopened, ready_for_review]
 
 # Least privilege: CI only needs to read the repository contents.
 permissions:
