@@ -1,15 +1,14 @@
 /* MMM-Skyss */
 
-.skyss {
+.skyss-wrapper {
   /* Accents are centralised and theme-friendly: realtime is the classic Skyss
-     orange, deviations use a distinct warning red so the two are never confused. */
+     orange; deviations, cancellations and errors share a distinct warning red. */
   --skyss-accent-realtime: rgb(231 149 35);
   --skyss-accent-deviation: rgb(224 82 70);
 }
 
 table.skyss {
   width: 100%;
-  border: 1px;
   text-align: left;
 }
 
@@ -18,8 +17,10 @@ table.skyss th {
   padding: 0 6px;
 }
 
-table.skyss thead {
-  /* Derive the divider from the theme's text colour instead of hard-coded white. */
+/* MagicMirror tables use border-collapse: separate, which never draws a border
+   set on <thead>, so the divider goes on the header cells. It derives from the
+   theme's text colour instead of a hard-coded white. */
+table.skyss thead th {
   border-bottom: 1px solid var(--color-text-dimmed, rgb(255 255 255 / 73.3%));
 }
 
@@ -27,36 +28,38 @@ table.skyss thead {
   padding-right: 5px;
 }
 
-.skyss .title {
-  padding-left: 0;
-  padding-right: 0;
-}
-
 .skyss .time {
   padding-left: 30px;
   text-align: right;
 }
 
-.sanntid {
-  color: var(--skyss-accent-realtime, rgb(231 149 35));
+.skyss .sanntid {
+  color: var(--skyss-accent-realtime);
   font-weight: bold;
 }
 
-.rightalign {
-  text-align: right;
+.skyss tr.cancelled td {
+  text-decoration: line-through;
+}
+
+.skyss tr.cancelled td.time {
+  color: var(--skyss-accent-deviation);
+  text-decoration: none;
 }
 
 .skyss-deviations {
-  /* Re-declare the accent here since this block is a sibling of table.skyss. */
-  --skyss-accent-deviation: rgb(224 82 70);
-
   margin-bottom: 4px;
 }
 
-.skyss-deviation {
-  color: var(--skyss-accent-deviation, rgb(224 82 70));
+.skyss-deviation,
+.skyss-error {
+  color: var(--skyss-accent-deviation);
 }
 
 .skyss-deviation-icon {
   margin-right: 4px;
+}
+
+.skyss-stale {
+  margin-top: 4px;
 }

@@ -86,7 +86,7 @@ test("node_helper: aborts and reports oversized responses (memory cap)", () => {
     const res = fakeResponse();
     lastReq._respond(res);
 
-    res.emit("data", "x".repeat(2 * 1024 * 1024 + 10)); // > 2 MB cap
+    res.emit("data", "x".repeat(helper.maxResponseBytes + 10)); // over the cap
     assert.strictEqual(lastReq.destroyed, true, "request destroyed on oversize");
     assert.deepStrictEqual(ctx._sent, [{ n: "getstop", p: { id: "req-3", err: "Response too large" } }]);
 
@@ -101,11 +101,28 @@ test("node_helper: ignores notifications other than getstop", () => {
     assert.strictEqual(ctx._sent.length, 0);
 });
 
-test("node_helper: reports a non-2xx HTTP status as an error", () => {
+test("node_helper: reports a non-2xx HTTP status as an error and logs it", (t) => {
+    const logged = t.mock.method(console, "error", () => {});
     const ctx = makeHelperCtx();
     ctx.socketNotificationReceived("getstop", { id: "req-5", body: {}, debug: false });
     lastReq._respond(fakeResponse(503));
     assert.deepStrictEqual(ctx._sent, [{ n: "getstop", p: { id: "req-5", err: "HTTP 503" } }]);
+    assert.match(logged.mock.calls[0].arguments[0], /HTTP 503/);
+});
+
+test("node_helper: logs a Skyss error body and still forwards it", (t) => {
+    const logged = t.mock.method(console, "error", () => {});
+    const ctx = makeHelperCtx();
+    ctx.socketNotificationReceived("getstop", { id: "req-7", body: {}, debug: false });
+    const res = fakeResponse();
+    lastReq._respond(res);
+    // The real body Skyss sends (with HTTP 200) for an unknown stop.
+    const body = '{"resultCode":"PERMANENT_ERROR","errorCode":"302","errorMessage":"Holdeplassen finnes ikke"}';
+    res.emit("data", body);
+    res.emit("end");
+    assert.deepStrictEqual(ctx._sent, [{ n: "getstop", p: { id: "req-7", response: body } }]);
+    assert.strictEqual(logged.mock.callCount(), 1);
+    assert.match(logged.mock.calls[0].arguments[0], /PERMANENT_ERROR 302 Holdeplassen finnes ikke \(check stopId/);
 });
 
 test("node_helper: reports a request timeout as an error", () => {

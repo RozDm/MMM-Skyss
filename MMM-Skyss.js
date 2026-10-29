@@ -15,6 +15,14 @@ const SKYSS_CLOCK_RE = /([0-9]{2}):([0-9]{2})/;
 // (timetable only) and "Cancelled"; an unknown status is treated as timetable.
 const SKYSS_LIVE_STATUSES = ["OnTime", "Early", "Late"];
 
+// How often the board is redrawn between polls, so countdowns stay current and
+// departed rows drop off even while the API cannot be reached.
+const REFRESH_INTERVAL = 15000;
+
+// Departures kept from a response, earliest first. A big station returns over a
+// thousand for the rest of the day, and the board shows only `maxItems`.
+const MAX_KEPT_DEPARTURES = 200;
+
 /**
  * MagicMirror module definition. Typed loosely as a string-keyed record because
  * MagicMirror injects many members at runtime (translate, sendSocketNotification,
@@ -39,6 +47,7 @@ const Skyss = {
         fadePoint: 0.25, // Start on 1/4th of the list.
         useRealtime: true, // Whether to use realtime data from Skyss
         showDeviations: true, // Show Skyss service messages / deviations when present (default true)
+        showCancelled: true, // Show cancelled departures, marked as cancelled (false hides them)
         debug: false // Enable verbose debug logging
     },
 
@@ -62,9 +71,13 @@ const Skyss = {
         console.log(this.translate("STARTINGMODULE") + ": " + this.name); // always shown
         if (this.config.debug) console.log("[MMM-Skyss][DEBUG] Configuration:", this.config);
 
-        this.journeys = [];
+        this.journeys = []; // Departures from the last successful response, earliest first
         this.deviations = []; // Service messages / deviations from the last successful response
         this.hasLoaded = false; // Have we ever received a successful response?
+        this.lastSuccess = 0; // When the last successful response arrived (ms)
+        this.error = null; // { type: "nostops" | "stop" | "fetch", detail } while updates fail
+        this.unknownStops = false; // Skyss knows none of the configured quays
+        this.warnedQuays = {}; // Quays already reported as unknown (each is warned about once)
         this.consecutiveErrors = 0; // Drives the exponential backoff after errors
 
         // Per-instance request map keyed by a unique id. Every MMM-Skyss instance
@@ -93,13 +106,31 @@ const Skyss = {
 
         if (this.config.debug) console.log("[MMM-Skyss][DEBUG] Time format set to:", this.config.timeFormat);
 
+        this.startRefreshTimer();
         // Poll immediately, then self-schedule each subsequent poll so we can back
         // off when the API is failing instead of hammering it on a fixed interval.
         this.scheduleNextPoll(0);
     },
 
+    // MagicMirror calls suspend() when the module is hidden (e.g. by a pages
+    // module) and resume() when it is shown again: no polling while hidden.
+    suspend: function () {
+        this.suspended = true;
+        clearTimeout(this.pollTimer);
+        clearInterval(this.refreshTimer);
+    },
+
+    resume: function () {
+        if (!this.suspended) return;
+        this.suspended = false;
+        this.startRefreshTimer();
+        this.updateDom(0); // drop the rows that departed while hidden
+        this.scheduleNextPoll(0); // and fetch fresh data straight away
+    },
+
     getDom: function () {
         var wrapper = document.createElement("div");
+        wrapper.className = "skyss-wrapper";
 
         // Service messages / deviations (when enabled and present), shown above the
         // departures so a disruption is visible even when nothing is running. Each
@@ -120,7 +151,10 @@ const Skyss = {
             wrapper.appendChild(devBox);
         }
 
-        if (this.journeys.length > 0) {
+        var now = Date.now();
+        var rows = this.visibleJourneys(now);
+
+        if (rows.length > 0) {
             var table = document.createElement("table");
             table.className = "skyss small";
 
@@ -130,17 +164,16 @@ const Skyss = {
 
             var tbody = document.createElement("tbody");
 
-            for (var i = 0; i < this.journeys.length; i++) {
-                var journey = this.journeys[i];
-                var tr = this.getTableRow(journey);
+            for (var i = 0; i < rows.length; i++) {
+                var tr = this.getTableRow(rows[i]);
 
                 // Create fade effect. <-- stolen from default "calendar" module
                 if (this.config.fade && this.config.fadePoint < 1) {
                     if (this.config.fadePoint < 0) {
                         this.config.fadePoint = 0;
                     }
-                    var startingPoint = this.journeys.length * this.config.fadePoint;
-                    var steps = this.journeys.length - startingPoint;
+                    var startingPoint = rows.length * this.config.fadePoint;
+                    var steps = rows.length - startingPoint;
                     if (i >= startingPoint) {
                         var currentStep = i - startingPoint;
                         tr.style.opacity = 1 - (1 / steps) * currentStep;
@@ -152,12 +185,20 @@ const Skyss = {
 
             table.appendChild(tbody);
             wrapper.appendChild(table);
+
+            // While updates keep failing, say how old the departures on screen are.
+            if (this.error && now - this.lastSuccess > 2 * this.config.serviceReloadInterval) {
+                var stale = document.createElement("div");
+                stale.className = "skyss-stale xsmall dimmed";
+                stale.textContent = this.translate("UPDATED", { time: this.formatClock(new Date(this.lastSuccess)) });
+                wrapper.appendChild(stale);
+            }
         } else {
+            var status = this.statusMessage();
             var message = document.createElement("div");
-            message.className = "small dimmed";
-            // "Loading" until the first successful poll, then "no departures".
+            message.className = status.isError ? "small skyss-error" : "small dimmed";
             // Rendered as text (not innerHTML) since it is plain, translated copy.
-            message.textContent = this.translate(this.hasLoaded ? "NODEPARTURES" : "LOADING");
+            message.textContent = this.translate(status.key);
             wrapper.appendChild(message);
         }
 
@@ -165,12 +206,53 @@ const Skyss = {
     },
 
     /**
-     * Schedule the next poll, replacing any pending one.
+     * The departures to show at `now`: rows that have left (more than a minute
+     * ago) or leave sooner than `walkingTime` are dropped, then `maxItems` applies.
+     * Doing this at render time keeps the list moving between polls and during
+     * an outage.
+     * @param {number} now current time in milliseconds
+     * @returns {Array<Object>}
+     */
+    visibleJourneys: function (now) {
+        var minAhead = this.config.walkingTime > 0 ? this.config.walkingTime * 60000 : -60000;
+        var rows = [];
+        for (var i = 0; i < this.journeys.length && rows.length < this.config.maxItems; i++) {
+            var journey = this.journeys[i];
+            if (new Date(journey.time.Timestamp).getTime() - now >= minAhead) rows.push(journey);
+        }
+        return rows;
+    },
+
+    /**
+     * What to say when there are no departures to show.
+     * @returns {{ key: string, isError: boolean }} a translation key, and whether it reports a problem
+     */
+    statusMessage: function () {
+        var type = this.error ? this.error.type : null;
+        if (type === "nostops") return { key: "NOSTOPS", isError: true };
+        if (type === "stop" || (!type && this.unknownStops)) return { key: "ERROR_STOP", isError: true };
+        if (type === "fetch") return { key: "ERROR_FETCH", isError: true };
+        return { key: this.hasLoaded ? "NODEPARTURES" : "LOADING", isError: false };
+    },
+
+    /** Redraw every REFRESH_INTERVAL ms (MagicMirror skips the update when nothing changed). */
+    startRefreshTimer: function () {
+        var self = this;
+        clearInterval(this.refreshTimer);
+        this.refreshTimer = setInterval(function () {
+            self.updateDom(0);
+        }, REFRESH_INTERVAL);
+    },
+
+    /**
+     * Schedule the next poll, replacing any pending one. Nothing is scheduled
+     * while the module is suspended; resume() polls again.
      * @param {number} delay milliseconds until the next poll
      */
     scheduleNextPoll: function (delay) {
         var self = this;
         clearTimeout(this.pollTimer);
+        if (this.suspended) return;
         this.pollTimer = setTimeout(function () {
             self.poll();
         }, delay);
@@ -198,34 +280,34 @@ const Skyss = {
         // callback always runs and always schedules the next poll.
         this.getStopInfo(this.config.stops, function (err, result) {
             if (err) {
-                // Keep the last good data on screen and back off the next poll
-                // (exponential, capped at maxReloadInterval).
+                // Keep the last good data on screen, say what went wrong, and back
+                // off the next poll (exponential, capped at maxReloadInterval).
+                var error = err && err.type ? err : { type: "fetch", detail: String(err) };
+                self.error = error;
+                self.logError(error);
+                self.updateDom(0);
+                // A config without valid stops cannot recover until a restart.
+                if (error.type === "nostops") return;
                 self.consecutiveErrors++;
-                if (self.config.debug)
-                    console.log("[MMM-Skyss][DEBUG] Poll error (", err, "); next poll in", self.nextBackoff(), "ms");
+                if (self.config.debug) console.log("[MMM-Skyss][DEBUG] Next poll in", self.nextBackoff(), "ms");
                 self.scheduleNextPoll(self.nextBackoff());
                 return;
             }
 
             self.consecutiveErrors = 0;
+            self.error = null;
+            self.loggedError = null;
             self.hasLoaded = true;
+            self.lastSuccess = Date.now();
 
-            var allJourneys = (result || []).slice();
-            allJourneys.sort(function (a, b) {
-                return new Date(a.time.Timestamp).getTime() - new Date(b.time.Timestamp).getTime();
-            });
+            self.journeys = (result || [])
+                .slice()
+                .sort(function (a, b) {
+                    return new Date(a.time.Timestamp).getTime() - new Date(b.time.Timestamp).getTime();
+                })
+                .slice(0, MAX_KEPT_DEPARTURES);
 
-            // Hide departures leaving too soon to walk to (walkingTime minutes).
-            if (self.config.walkingTime > 0) {
-                var nowMs = Date.now();
-                allJourneys = allJourneys.filter(function (j) {
-                    return (new Date(j.time.Timestamp).getTime() - nowMs) / 60000 >= self.config.walkingTime;
-                });
-            }
-
-            self.journeys = allJourneys.slice(0, self.config.maxItems);
-
-            if (self.config.debug) console.log("[MMM-Skyss][DEBUG] Displaying", self.journeys.length, "journeys");
+            if (self.config.debug) console.log("[MMM-Skyss][DEBUG] Kept", self.journeys.length, "departures");
 
             self.updateDom(self.config.animationSpeed);
             self.scheduleNextPoll(self.config.serviceReloadInterval);
@@ -233,8 +315,22 @@ const Skyss = {
     },
 
     /**
+     * Report a failed update in the browser console, once per distinct error so a
+     * long outage does not repeat it every poll. The node helper also logs
+     * transport and API errors to the MagicMirror server log.
+     * @param {{ type: string, detail?: string }} error
+     */
+    logError: function (error) {
+        var text = error.type + (error.detail ? ": " + error.detail : "");
+        if (text === this.loggedError) return;
+        this.loggedError = text;
+        console.warn("[MMM-Skyss] Could not update departures (" + text + ")");
+    },
+
+    /**
      * Fetch and normalise departures for the configured stops, then hand the
-     * resulting view-model array to the callback.
+     * resulting view-model array to the callback. Errors are a string for a
+     * transport or parse failure, or { type, detail } when the cause is known.
      * @param {Array<Object>} stopItems the `stops` config array
      * @param {(err: any, items: Array<Object>) => void} callback
      */
@@ -248,8 +344,7 @@ const Skyss = {
         var requestBody = this._requestBody;
 
         if (!requestBody.stopGroups || requestBody.stopGroups.length === 0) {
-            if (self.config.debug) console.log("[MMM-Skyss][DEBUG] No valid stops configured; skipping API call.");
-            callback(null, []);
+            callback({ type: "nostops", detail: "no valid stops configured" }, []);
             return;
         }
 
@@ -271,6 +366,21 @@ const Skyss = {
                 return;
             }
 
+            // Skyss answers a bad request with HTTP 200 and an error body, e.g.
+            // PERMANENT_ERROR "Holdeplassen finnes ikke" for an unknown stop.
+            if (departure && departure.resultCode) {
+                callback(
+                    {
+                        type: departure.resultCode === "PERMANENT_ERROR" ? "stop" : "fetch",
+                        detail: [departure.resultCode, departure.errorCode, departure.errorMessage]
+                            .filter(Boolean)
+                            .join(" ")
+                    },
+                    []
+                );
+                return;
+            }
+
             if (!departure || !Array.isArray(departure.PassingTimes) || !departure.Stops) {
                 if (self.config.debug) console.log("[MMM-Skyss][DEBUG] Unexpected API response shape, skipping update");
                 callback("unexpected response shape", []);
@@ -288,15 +398,18 @@ const Skyss = {
 
             for (var j = 0; j < times.length; j++) {
                 var journey = times[j];
-                // A cancelled departure keeps its timetable DisplayTime but will not
-                // run, so it is left out rather than shown as a departure.
-                if (journey.Status === "Cancelled") {
+                // A departure that has already passed the stop is gone.
+                if (journey.Passed === true) {
                     if (self.config.debug)
-                        console.log(
-                            "[MMM-Skyss][DEBUG] Skipping cancelled",
-                            journey.RoutePublicIdentifier,
-                            journey.AimedTime
-                        );
+                        console.log("[MMM-Skyss][DEBUG] Skipping passed", journey.RoutePublicIdentifier);
+                    continue;
+                }
+                // A cancelled departure keeps its timetable DisplayTime but will not
+                // run: it is shown as cancelled, or left out with showCancelled off.
+                var cancelled = journey.Status === "Cancelled";
+                if (cancelled && !self.config.showCancelled) {
+                    if (self.config.debug)
+                        console.log("[MMM-Skyss][DEBUG] Skipping cancelled", journey.RoutePublicIdentifier);
                     continue;
                 }
                 var stop = departure.Stops[journey.StopIdentifier] || {};
@@ -345,6 +458,9 @@ const Skyss = {
                         Status: journey.Status
                     },
                     usedRealtime: usedRealtime,
+                    cancelled: cancelled,
+                    // Skyss flags a live estimate it does not trust; it is shown as approximate.
+                    approximate: usedRealtime && journey.PredictionInaccurate === true,
                     // The platform letter ("A", "B", ...) belongs to the quay, so it is
                     // on the Stops entry, not on the departure. Many roadside stops
                     // have none.
@@ -354,6 +470,7 @@ const Skyss = {
 
             if (self.config.debug) console.log("[MMM-Skyss][DEBUG] Messages:", JSON.stringify(departure.Messages));
             self.deviations = self.extractDeviations(departure.Messages, Date.now());
+            self.checkKnownStops(requestBody, departure.Stops, allStopItems.length);
 
             if (self.config.debug) console.log("[MMM-Skyss][DEBUG] Processed", allStopItems.length, "stop items");
             callback(null, allStopItems);
@@ -361,8 +478,43 @@ const Skyss = {
     },
 
     /**
+     * Warn, once per quay, about configured quays that Skyss does not know under
+     * their stop group (a typo, or a quay paired with the wrong stopGroupId): the
+     * API just returns nothing for them. When none of the quays is known and
+     * nothing departs, the board says so instead of "No departures".
+     * @param {{ stopGroups: Array<{id: string, stops: Array<{id: string}>}> }} requestBody
+     * @param {Object} knownStops the response's `Stops`, keyed by quay id
+     * @param {number} departureCount departures in the response
+     */
+    checkKnownStops: function (requestBody, knownStops, departureCount) {
+        var self = this;
+        var configured = 0;
+        var unknown = 0;
+        requestBody.stopGroups.forEach(function (group) {
+            group.stops.forEach(function (quay) {
+                configured++;
+                if (knownStops[quay.id]) return;
+                unknown++;
+                if (self.warnedQuays[quay.id]) return;
+                self.warnedQuays[quay.id] = true;
+                console.warn(
+                    "[MMM-Skyss] Skyss does not know " +
+                        quay.id +
+                        " under " +
+                        group.id +
+                        "; check stopId / stopGroupId (node scripts/api-sample.js " +
+                        group.id.split(":").pop() +
+                        " lists the quays of that stop)"
+                );
+            });
+        });
+        this.unknownStops = configured > 0 && unknown === configured && departureCount === 0;
+    },
+
+    /**
      * Build the v3 `/departures` request body by grouping configured stops by
-     * stopGroupId and normalising ids to the `NSR:` form.
+     * stopGroupId and normalising ids to the `NSR:` form. A stop given only by its
+     * stopGroupId is sent without quays, which makes Skyss return all of them.
      * @param {Array<Object>} stopItems the `stops` config array
      * @returns {{ stopGroups: Array<{id: string, stops: Array<{id: string}>}> }}
      */
@@ -377,12 +529,23 @@ const Skyss = {
         };
 
         const stopGroupsMap = {}; // key = groupId
+        const wholeGroups = {}; // groups configured without quays: ask for all of them
 
         // Guard against a missing/invalid `stops` config (undefined, null, non-array)
         const items = Array.isArray(stopItems) ? stopItems : [];
 
         for (let i = 0; i < items.length; i++) {
-            const item = items[i];
+            const item = items[i] || {};
+
+            // StopPlace only: { stopGroupId: "62356" } shows every quay of the stop.
+            if (item.stopGroupId && item.stopId === undefined && item.stopIds === undefined) {
+                const groupId = normalizeId(item.stopGroupId, "StopPlace");
+                wholeGroups[groupId] = true;
+                if (!stopGroupsMap[groupId]) {
+                    stopGroupsMap[groupId] = { id: groupId, stops: [] };
+                }
+                continue;
+            }
 
             // Support alternative grouped config form: { stopGroupId: "32383", stopIds: ["55869", "55870"] }
             if (Array.isArray(item.stopIds) && item.stopGroupId) {
@@ -427,20 +590,26 @@ const Skyss = {
             stopGroupsMap[groupId].stops.push({ id: stopId });
         }
 
-        const stopGroupsArray = Object.values(stopGroupsMap);
+        // A whole StopPlace wins over quays listed for it elsewhere: send none.
+        Object.keys(wholeGroups).forEach((groupId) => {
+            stopGroupsMap[groupId].stops = [];
+        });
 
-        // Additional safeguard: remove groups without id or with no stops
-        const filtered = stopGroupsArray.filter((g) => g.id && g.stops.length > 0);
+        // Additional safeguard: remove groups without id, or with no quays unless
+        // the whole stop was asked for.
+        const filtered = Object.values(stopGroupsMap).filter((g) => g.id && (g.stops.length > 0 || wholeGroups[g.id]));
 
         if (filtered.length === 0) {
-            if (self.config.debug)
-                console.log(
-                    "[MMM-Skyss][DEBUG] No valid stop groups constructed from configuration. Check your stops config."
-                );
+            console.warn("[MMM-Skyss] No valid stops configured. Check the stops config (see README).");
         } else if (self.config.debug) {
             console.log("[MMM-Skyss][DEBUG] Constructed request body with", filtered.length, "group(s).");
             filtered.forEach((g) =>
-                console.log("[MMM-Skyss][DEBUG] Group", g.id, "stops:", g.stops.map((s) => s.id).join(", "))
+                console.log(
+                    "[MMM-Skyss][DEBUG] Group",
+                    g.id,
+                    "stops:",
+                    g.stops.length ? g.stops.map((s) => s.id).join(", ") : "all quays"
+                )
             );
         }
 
@@ -580,31 +749,30 @@ const Skyss = {
     },
 
     getTableRow: function (journey) {
-        var tdIcon = document.createElement("td");
+        // The icon sits in a span: Font Awesome's classes would turn a <td> itself
+        // into an inline block and break the table layout.
         var imageFA;
         switch (journey.service) {
-            case "Bus":
-            case "Express":
-            case "Airport bus":
-                imageFA = "bus";
-                break;
             case "Light rail":
                 imageFA = "subway";
                 break;
-            case "Ferry":
             case "Boat":
+            case "Ferry":
                 imageFA = "ship";
                 break;
             case "Train":
                 imageFA = "train";
                 break;
             default:
-                // Neutral fallback for an unrecognised service mode (a bus reads as a
-                // generic transit glyph on the board, unlike the old "rocket").
+                // "Bus", and a neutral transit glyph for any mode Skyss adds later.
                 imageFA = "bus";
                 break;
         }
-        tdIcon.className = "fa fa-" + imageFA;
+        var icon = document.createElement("span");
+        icon.className = "fa fa-" + imageFA;
+        var tdIcon = document.createElement("td");
+        tdIcon.className = "icon";
+        tdIcon.appendChild(icon);
 
         var tdLine = document.createElement("td");
         tdLine.className = "line";
@@ -628,16 +796,21 @@ const Skyss = {
         }
 
         var tdTime = document.createElement("td");
-        // Accent the time only when it is a live realtime estimate (see getStopInfo);
-        // timetable-only departures stay unaccented.
-        if (journey.usedRealtime) {
-            tdTime.className = "time light sanntid";
-        } else {
+        var timeText;
+        if (journey.cancelled) {
             tdTime.className = "time light";
+            timeText = this.translate("CANCELLED");
+        } else {
+            // Accent the time only when it is a live realtime estimate (see
+            // getStopInfo); timetable-only departures stay unaccented.
+            tdTime.className = journey.usedRealtime ? "time light sanntid" : "time light";
+            timeText = this.formatTime(journey.time.Timestamp);
+            if (journey.approximate) timeText = this.translate("APPROX") + " " + timeText;
         }
-        tdTime.appendChild(document.createTextNode(this.formatTime(journey.time.Timestamp)));
+        tdTime.appendChild(document.createTextNode(timeText));
 
         var tr = document.createElement("tr");
+        if (journey.cancelled) tr.className = "cancelled";
         tr.appendChild(tdIcon);
         tr.appendChild(tdLine);
         tr.appendChild(tdDestination);

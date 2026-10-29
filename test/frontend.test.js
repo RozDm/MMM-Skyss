@@ -67,14 +67,30 @@ test("formatTime: 12h clock respects timeFormat", () => {
 
 // ---- getStopInfo (request building + guards) ----------------------------
 
-test("getStopInfo: undefined stops -> empty success, no network call", () => {
+test("getStopInfo: undefined stops -> a 'nostops' error, no network call", () => {
     const ctx = makeInstance(def, { stops: undefined });
     let cb;
     ctx.getStopInfo(ctx.config.stops, (err, res) => {
         cb = [err, res];
     });
-    assert.deepStrictEqual(cb, [null, []]);
+    assert.strictEqual(cb[0].type, "nostops");
+    assert.deepStrictEqual(cb[1], []);
     assert.strictEqual(ctx._sent, undefined);
+});
+
+test("buildRequestBody: a stop given only by stopGroupId asks for all of its quays", () => {
+    const ctx = makeInstance(def);
+    assert.deepStrictEqual(ctx.buildRequestBody([{ stopGroupId: "62356" }, { stopGroupId: 30859 }]), {
+        stopGroups: [
+            { id: "NSR:StopPlace:62356", stops: [] },
+            { id: "NSR:StopPlace:30859", stops: [] }
+        ]
+    });
+    // A whole stop wins over quays listed for it elsewhere.
+    assert.deepStrictEqual(
+        ctx.buildRequestBody([{ stopId: "53029", stopGroupId: "62356" }, { stopGroupId: "62356" }]),
+        { stopGroups: [{ id: "NSR:StopPlace:62356", stops: [] }] }
+    );
 });
 
 test("getStopInfo: valid stops -> tagged request with correct body", () => {
@@ -187,7 +203,7 @@ test("poll: success resets the error counter", () => {
     assert.strictEqual(ctx.consecutiveErrors, 0);
 });
 
-test("poll: sorts journeys ascending and applies maxItems", () => {
+test("poll keeps departures sorted; maxItems applies when rendering", () => {
     const ctx = makeInstance(def, { maxItems: 2 });
     const t = (m) => new Date(now + m * 60000).toISOString();
     ctx.getStopInfo = (stops, cb) =>
@@ -199,11 +215,15 @@ test("poll: sorts journeys ascending and applies maxItems", () => {
     ctx.poll();
     assert.deepStrictEqual(
         ctx.journeys.map((j) => j.lineName),
+        ["A", "B", "C"]
+    );
+    assert.deepStrictEqual(
+        ctx.visibleJourneys(Date.now()).map((j) => j.lineName),
         ["A", "B"]
     );
 });
 
-test("poll: walkingTime hides departures too soon to catch", () => {
+test("rendering hides departures too soon to catch (walkingTime)", () => {
     const ctx = makeInstance(def, { walkingTime: 10 });
     const t = (m) => new Date(now + m * 60000).toISOString();
     ctx.getStopInfo = (stops, cb) =>
@@ -214,9 +234,24 @@ test("poll: walkingTime hides departures too soon to catch", () => {
         ]);
     ctx.poll();
     assert.deepStrictEqual(
-        ctx.journeys.map((j) => j.lineName),
+        ctx.visibleJourneys(Date.now()).map((j) => j.lineName),
         ["ok1", "ok2"]
     );
+});
+
+test("rendering drops departed rows as time passes, without a new poll", (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: FIXTURE_NOW });
+    const ctx = makeInstance(def);
+    const at = (m) => new Date(FIXTURE_NOW + m * 60000).toISOString();
+    ctx.journeys = [
+        { lineName: "gone", time: { Timestamp: at(-2) } },
+        { lineName: "now", time: { Timestamp: at(-0.5) } },
+        { lineName: "soon", time: { Timestamp: at(3) } }
+    ];
+    const names = () => ctx.visibleJourneys(Date.now()).map((j) => j.lineName);
+    assert.deepStrictEqual(names(), ["now", "soon"]); // a row stays for a minute as "Now"
+    t.mock.timers.tick(5 * 60000);
+    assert.deepStrictEqual(names(), []);
 });
 
 // ---- getDom -------------------------------------------------------------
@@ -265,6 +300,104 @@ test("getDom: renders a tbody with one row per journey", () => {
     const tbody = table.childNodes.find((c) => c.tagName === "tbody");
     assert.ok(tbody, "table has a tbody");
     assert.strictEqual(tbody.childNodes.length, 1);
+});
+
+// ---- errors, stale data, suspend ----------------------------------------
+
+// Poll, then answer the request the way the node helper would.
+function pollWith(ctx, answer) {
+    ctx.poll();
+    ctx.socketNotificationReceived("getstop", Object.assign({ id: ctx._sent[ctx._sent.length - 1].p.id }, answer));
+}
+const statusOf = (ctx) => {
+    const msg = ctx.getDom().childNodes.find((c) => /^small /.test(c.className));
+    return msg && [msg.className, msg.textContent];
+};
+
+test("an unknown stop is reported on the board instead of Loading", (t) => {
+    t.mock.method(console, "warn", () => {});
+    const ctx = makeInstance(def, { stops: [{ stopId: "99999999", stopGroupId: "99999999" }] });
+    // The real body Skyss sends (with HTTP 200) for an unknown stop.
+    pollWith(ctx, {
+        response: '{"resultCode":"PERMANENT_ERROR","errorCode":"302","errorMessage":"Holdeplassen finnes ikke"}'
+    });
+    assert.strictEqual(ctx.error.type, "stop");
+    assert.deepStrictEqual(statusOf(ctx), ["small skyss-error", "ERROR_STOP"]);
+    assert.strictEqual(ctx._scheduled, ctx.config.serviceReloadInterval * 2, "keeps retrying with backoff");
+});
+
+test("a network failure before the first update says Skyss cannot be reached", (t) => {
+    t.mock.method(console, "warn", () => {});
+    const ctx = makeInstance(def, { stops: [{ stopId: "1", stopGroupId: "2" }] });
+    pollWith(ctx, { err: "getaddrinfo ENOTFOUND skyss.giantleap.no" });
+    assert.deepStrictEqual(statusOf(ctx), ["small skyss-error", "ERROR_FETCH"]);
+});
+
+test("a config without valid stops is reported and polling stops", (t) => {
+    const warned = t.mock.method(console, "warn", () => {});
+    const ctx = makeInstance(def, { stops: [{ stopId: "55861" }] }); // stopGroupId missing
+    ctx.poll();
+    assert.deepStrictEqual(statusOf(ctx), ["small skyss-error", "NOSTOPS"]);
+    assert.strictEqual(ctx._scheduled, undefined, "no further poll");
+    assert.ok(warned.mock.callCount() >= 1, "the reason is logged");
+});
+
+test("quays Skyss does not know are warned about once, and the board says so", (t) => {
+    const warned = t.mock.method(console, "warn", () => {});
+    const ctx = makeInstance(def, { stops: [{ stopId: "55861", stopGroupId: "62356" }] }); // wrong group
+    // What Skyss returns for a quay under the wrong StopPlace: an empty result.
+    const empty = JSON.stringify({ PassingTimes: [], Messages: [], Stops: {}, StopGroups: {} });
+    pollWith(ctx, { response: empty });
+    pollWith(ctx, { response: empty });
+    assert.strictEqual(warned.mock.callCount(), 1);
+    assert.match(warned.mock.calls[0].arguments[0], /NSR:Quay:55861 under NSR:StopPlace:62356/);
+    assert.deepStrictEqual(statusOf(ctx), ["small skyss-error", "ERROR_STOP"]);
+});
+
+test("while updates keep failing, the board says how old its data is", (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: FIXTURE_NOW });
+    t.mock.method(console, "warn", () => {});
+    const ctx = makeInstance(def);
+    const soon = new Date(FIXTURE_NOW + 20 * 60000).toISOString();
+    ctx.getStopInfo = (stops, cb) => cb(null, [{ lineName: "4", time: { Timestamp: soon } }]);
+    ctx.poll();
+    const note = () => ctx.getDom().childNodes.find((c) => c.className === "skyss-stale xsmall dimmed");
+    assert.strictEqual(note(), undefined);
+
+    ctx.getStopInfo = (stops, cb) => cb("network down", []);
+    t.mock.timers.tick(30000);
+    ctx.poll();
+    assert.strictEqual(note(), undefined, "a single failed poll is not worth a note");
+    t.mock.timers.tick(60000);
+    ctx.poll();
+    assert.strictEqual(note().textContent, "UPDATED");
+});
+
+test("suspend stops polling and redrawing; resume redraws and polls at once", (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout", "setInterval"] });
+    const ctx = makeInstance(def);
+    ctx.scheduleNextPoll = def.scheduleNextPoll; // the real scheduler, on mocked timers
+    let polls = 0;
+    ctx.poll = () => polls++;
+    ctx.startRefreshTimer();
+    ctx.scheduleNextPoll(30000);
+
+    ctx.suspend();
+    t.mock.timers.tick(60000);
+    assert.strictEqual(polls, 0, "no poll while hidden");
+    const redraws = ctx._updated || 0;
+    ctx.scheduleNextPoll(1000); // a response arriving while hidden must not restart polling
+    t.mock.timers.tick(5000);
+    assert.strictEqual(polls, 0);
+    assert.strictEqual(ctx._updated || 0, redraws, "no redraw while hidden");
+
+    ctx.resume();
+    t.mock.timers.tick(1);
+    assert.strictEqual(polls, 1, "polls right away when shown again");
+    ctx.resume(); // resume without a suspend does nothing
+    t.mock.timers.tick(1);
+    assert.strictEqual(polls, 1);
+    ctx.suspend(); // clear the timers
 });
 
 // ---- real API response (fixture) ----------------------------------------
@@ -352,15 +485,67 @@ const CANCELLED_ROW = {
     Passed: false
 };
 
-test("real rows: a cancelled departure is left out; an early one is live", (t) => {
+test("real rows: a cancelled departure is marked cancelled; an early one is live", (t) => {
     t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-29T13:37:06.005Z") });
     const ctx = makeInstance(def, { stops: [{ stopId: "1", stopGroupId: "2" }] });
     const body = JSON.stringify({ PassingTimes: [CANCELLED_ROW, EARLY_ROW], Stops: {}, Messages: [] });
     const { items } = parseResponse(ctx, body);
     assert.deepStrictEqual(
-        items.map((i) => [i.lineName, i.usedRealtime]),
+        items.map((i) => [i.lineName, i.cancelled, i.usedRealtime]),
+        [
+            ["85", true, false],
+            ["10", false, true]
+        ]
+    );
+    const row = ctx.getTableRow(items[0]);
+    assert.strictEqual(row.className, "cancelled");
+    const timeCell = row.childNodes[row.childNodes.length - 1];
+    assert.strictEqual(timeCell.childNodes[0].textContent, "CANCELLED");
+    assert.doesNotMatch(timeCell.className, /sanntid/);
+});
+
+test("real rows: showCancelled false leaves a cancelled departure out", (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-29T13:37:06.005Z") });
+    const ctx = makeInstance(def, { stops: [{ stopId: "1", stopGroupId: "2" }], showCancelled: false });
+    const body = JSON.stringify({ PassingTimes: [CANCELLED_ROW, EARLY_ROW], Stops: {}, Messages: [] });
+    const { items } = parseResponse(ctx, body);
+    assert.deepStrictEqual(
+        items.map((i) => i.lineName),
+        ["10"]
+    );
+});
+
+test("a passed departure is left out; an inaccurate prediction reads as approximate", (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-29T13:37:06.005Z") });
+    const ctx = makeInstance(def, { stops: [{ stopId: "1", stopGroupId: "2" }] });
+    const passed = Object.assign({}, EARLY_ROW, { RoutePublicIdentifier: "11", Passed: true });
+    const inaccurate = Object.assign({}, EARLY_ROW, { DisplayTime: "4 min", PredictionInaccurate: true });
+    const body = JSON.stringify({ PassingTimes: [passed, inaccurate], Stops: {}, Messages: [] });
+    const { items } = parseResponse(ctx, body);
+    assert.deepStrictEqual(
+        items.map((i) => [i.lineName, i.approximate]),
         [["10", true]]
     );
+    const row = ctx.getTableRow(items[0]);
+    assert.strictEqual(row.childNodes[row.childNodes.length - 1].childNodes[0].textContent, "APPROX 4 MINUTES");
+});
+
+test("getTableRow: the icon follows the service mode, in a span inside the cell", () => {
+    const ctx = makeInstance(def);
+    const iconFor = (service) => {
+        const td = ctx.getTableRow({ service, lineName: "1", destinationName: "X", time: { Timestamp: now } })
+            .childNodes[0];
+        assert.strictEqual(td.className, "icon");
+        return td.childNodes[0].className;
+    };
+    assert.deepStrictEqual(["Bus", "Light rail", "Boat", "Ferry", "Train", "Hovercraft"].map(iconFor), [
+        "fa fa-bus",
+        "fa fa-subway",
+        "fa fa-ship",
+        "fa fa-ship",
+        "fa fa-train",
+        "fa fa-bus"
+    ]);
 });
 
 // ---- deviations ---------------------------------------------------------
@@ -483,7 +668,7 @@ test("getStopInfo: a non-array stopIds is skipped, not crashed", () => {
         cbArgs = [err, res];
     });
     // No valid groups built (the string stopIds is skipped), so no network call.
-    assert.deepStrictEqual(cbArgs, [null, []]);
+    assert.strictEqual(cbArgs[0].type, "nostops");
     assert.strictEqual(ctx._sent, undefined);
 });
 
