@@ -11,9 +11,9 @@ const pad = (n) => ("0" + n).slice(-2);
 const now = Date.now();
 
 // A real Skyss v3 /departures response for Bergen busstasjon + Byparken, captured
-// 2026-10-29 and trimmed to 10 representative departures (Stops and Messages are
-// complete). Tests that depend on the clock pin "now" to its ServerTime, the
-// moment its relative DisplayTime values ("5 min") were computed.
+// 2026-10-29 and trimmed to 10 representative departures and the quays they use
+// (Messages are complete). Tests that depend on the clock pin "now" to its
+// ServerTime, the moment its relative DisplayTime values ("5 min") were computed.
 const FIXTURE_RAW = fs.readFileSync(path.join(__dirname, "fixtures", "departures-bergen-busstasjon.json"), "utf8");
 const FIXTURE = JSON.parse(FIXTURE_RAW);
 const FIXTURE_NOW = Date.parse(FIXTURE.ServerTime);
@@ -320,6 +320,47 @@ test("real response: rendered minutes match Skyss' own DisplayTime", (t) => {
         "8 min": "8 MINUTES",
         "10 min": "10 MINUTES"
     });
+});
+
+// Two departures from one live response (2026-10-29, ServerTime 13:37:06Z).
+const EARLY_ROW = {
+    RouteDirectionIdentifier: "SKY:Line:10~outbound",
+    RoutePublicIdentifier: "10",
+    StopIdentifier: "NSR:Quay:53069",
+    TripDestination: "Wergeland",
+    TripDestinationDescription: "",
+    Status: "Early",
+    AimedTime: "2026-10-29T13:38:00.000Z",
+    DisplayTime: "1 min",
+    PredictionInaccurate: false,
+    ServiceMode: "Bus",
+    DirectionName: "Til Wergeland",
+    Passed: false
+};
+const CANCELLED_ROW = {
+    RouteDirectionIdentifier: "SKY:Line:85~inbound",
+    RoutePublicIdentifier: "85",
+    StopIdentifier: "NSR:Quay:50151",
+    TripDestination: "Servicelinjen",
+    TripDestinationDescription: "",
+    Status: "Cancelled",
+    AimedTime: "2026-10-29T14:24:00.000Z",
+    DisplayTime: "15:24",
+    PredictionInaccurate: false,
+    ServiceMode: "Bus",
+    DirectionName: "Servicelinjen",
+    Passed: false
+};
+
+test("real rows: a cancelled departure is left out; an early one is live", (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-29T13:37:06.005Z") });
+    const ctx = makeInstance(def, { stops: [{ stopId: "1", stopGroupId: "2" }] });
+    const body = JSON.stringify({ PassingTimes: [CANCELLED_ROW, EARLY_ROW], Stops: {}, Messages: [] });
+    const { items } = parseResponse(ctx, body);
+    assert.deepStrictEqual(
+        items.map((i) => [i.lineName, i.usedRealtime]),
+        [["10", true]]
+    );
 });
 
 // ---- deviations ---------------------------------------------------------

@@ -255,53 +255,11 @@
       "Platform": "R",
       "StopGroupIdentifier": "NSR:StopPlace:62356"
     },
-    "NSR:Quay:106982": {
-      "Identifier": "NSR:Quay:106982",
-      "ServiceModes": ["Light rail"],
-      "Description": "Bergen busstasjon D",
-      "Platform": "D",
-      "StopGroupIdentifier": "NSR:StopPlace:62356"
-    },
-    "NSR:Quay:106983": {
-      "Identifier": "NSR:Quay:106983",
-      "ServiceModes": ["Light rail"],
-      "Description": "Bergen busstasjon C",
-      "Platform": "C",
-      "StopGroupIdentifier": "NSR:StopPlace:62356"
-    },
-    "NSR:Quay:53022": {
-      "Identifier": "NSR:Quay:53022",
-      "ServiceModes": ["Bus"],
-      "Description": "Bergen busstasjon O",
-      "Platform": "O",
-      "StopGroupIdentifier": "NSR:StopPlace:62356"
-    },
     "NSR:Quay:53032": {
       "Identifier": "NSR:Quay:53032",
       "ServiceModes": ["Bus"],
       "Description": "Bergen busstasjon S",
       "Platform": "S",
-      "StopGroupIdentifier": "NSR:StopPlace:62356"
-    },
-    "NSR:Quay:53035": {
-      "Identifier": "NSR:Quay:53035",
-      "ServiceModes": ["Bus"],
-      "Description": "Bergen busstasjon K",
-      "Platform": "K",
-      "StopGroupIdentifier": "NSR:StopPlace:62356"
-    },
-    "NSR:Quay:53024": {
-      "Identifier": "NSR:Quay:53024",
-      "ServiceModes": ["Bus"],
-      "Description": "Bergen busstasjon G",
-      "Platform": "G",
-      "StopGroupIdentifier": "NSR:StopPlace:62356"
-    },
-    "NSR:Quay:53045": {
-      "Identifier": "NSR:Quay:53045",
-      "ServiceModes": ["Bus"],
-      "Description": "Bergen busstasjon N",
-      "Platform": "N",
       "StopGroupIdentifier": "NSR:StopPlace:62356"
     },
     "NSR:Quay:53034": {
@@ -311,46 +269,11 @@
       "Platform": "M",
       "StopGroupIdentifier": "NSR:StopPlace:62356"
     },
-    "NSR:Quay:53023": {
-      "Identifier": "NSR:Quay:53023",
-      "ServiceModes": ["Bus"],
-      "Description": "Bergen busstasjon E",
-      "Platform": "E",
-      "StopGroupIdentifier": "NSR:StopPlace:62356"
-    },
-    "NSR:Quay:53026": {
-      "Identifier": "NSR:Quay:53026",
-      "ServiceModes": ["Bus"],
-      "Description": "Bergen busstasjon L",
-      "Platform": "L",
-      "StopGroupIdentifier": "NSR:StopPlace:62356"
-    },
-    "NSR:Quay:100080": {
-      "Identifier": "NSR:Quay:100080",
-      "ServiceModes": ["Bus"],
-      "Description": "Bergen busstasjon P",
-      "Platform": "P",
-      "StopGroupIdentifier": "NSR:StopPlace:62356"
-    },
-    "NSR:Quay:53025": {
-      "Identifier": "NSR:Quay:53025",
-      "ServiceModes": ["Bus"],
-      "Description": "Bergen busstasjon F",
-      "Platform": "F",
-      "StopGroupIdentifier": "NSR:StopPlace:62356"
-    },
     "NSR:Quay:53028": {
       "Identifier": "NSR:Quay:53028",
       "ServiceModes": ["Bus"],
       "Description": "Bergen busstasjon U",
       "Platform": "U",
-      "StopGroupIdentifier": "NSR:StopPlace:62356"
-    },
-    "NSR:Quay:53027": {
-      "Identifier": "NSR:Quay:53027",
-      "ServiceModes": ["Bus"],
-      "Description": "Bergen busstasjon H",
-      "Platform": "H",
       "StopGroupIdentifier": "NSR:StopPlace:62356"
     },
     "NSR:Quay:53130": {
@@ -359,27 +282,6 @@
       "Description": "Byparken A",
       "Platform": "A",
       "StopGroupIdentifier": "NSR:StopPlace:30859"
-    },
-    "NSR:Quay:53031": {
-      "Identifier": "NSR:Quay:53031",
-      "ServiceModes": ["Bus"],
-      "Description": "Bergen busstasjon Q",
-      "Platform": "Q",
-      "StopGroupIdentifier": "NSR:StopPlace:62356"
-    },
-    "NSR:Quay:53141": {
-      "Identifier": "NSR:Quay:53141",
-      "ServiceModes": ["Light rail"],
-      "Description": "Bergen busstasjon A",
-      "Platform": "A",
-      "StopGroupIdentifier": "NSR:StopPlace:62356"
-    },
-    "NSR:Quay:53030": {
-      "Identifier": "NSR:Quay:53030",
-      "ServiceModes": ["Bus"],
-      "Description": "Bergen busstasjon J",
-      "Platform": "J",
-      "StopGroupIdentifier": "NSR:StopPlace:62356"
     },
     "NSR:Quay:53140": {
       "Identifier": "NSR:Quay:53140",

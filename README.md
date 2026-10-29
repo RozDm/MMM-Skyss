@@ -7,7 +7,7 @@
 ![1](images/MMM-Skyss-1.png)
 ![2](images/MMM-Skyss-2.png)
 
-Current version is 2.6.0. See [changelog](CHANGELOG.md "Version history") for version history.
+Current version is 2.6.1. See [changelog](CHANGELOG.md "Version history") for version history.
 
 ## Installation
 
@@ -69,7 +69,7 @@ maxReloadInterval | Upper bound (MS) for the exponential backoff used after API 
 animationSpeed | How fast the animation changes when updating mirror - in milliseconds | 0  
 fade | Set this to true to fade list from light to dark | true  
 fadePoint | Start fading on 1/4th of the list | 0.25
-useRealtime | Use Skyss' realtime estimate for departures with live tracking (status `OnTime` / `Late`); those times are highlighted. Departures without live data always show the timetable time and are not highlighted | true
+useRealtime | Use Skyss' realtime estimate for departures with live tracking (status `OnTime`, `Early` or `Late`); those times are highlighted. Departures without live data always show the timetable time and are not highlighted. Cancelled departures are never shown | true
 showDeviations | Show Skyss service messages / deviations (from the API's `Messages` field) when present | true
 debug | Enable verbose console logging for troubleshooting | false
 
@@ -125,7 +125,7 @@ This produces the exact same request body as listing each quay separately.
 
 ## Stops
 
-You have to configure at least one stop. The module now uses the new Skyss v3 API which requires both a `stopId` (Quay ID) and a `stopGroupId` (StopPlace ID).
+You have to configure at least one stop. Each stop needs a `stopGroupId` (the StopPlace ID, which the Skyss v3 API requires) and a `stopId` (the Quay ID).
 
 ### How to find Stop (Quay) and Stop Group (StopPlace) IDs
 
@@ -140,6 +140,8 @@ You have to configure at least one stop. The module now uses the new Skyss v3 AP
    - Each object has an `id` (this is the `StopPlace` ID)
    - Inside `stops` you find each `Quay` with its `id`.
 8. Copy the numeric parts or the full IDs for use in your configuration.
+
+Tip: once you know the StopPlace ID, run `node scripts/api-sample.js 32379` in the module folder. It lists every quay of that stop with its platform letter, lines and directions, so you can pick the quay IDs there. Run `node scripts/api-sample.js 32379/55861,55863` to check a finished configuration against the live API.
 
 Example extracted from payload:
 
@@ -207,6 +209,7 @@ Example:
 
 - While the API is unreachable or returns malformed data, the **last good departures stay on screen** instead of the board going blank, and the next poll is delayed with exponential backoff up to `maxReloadInterval`.
 - A successful response with no upcoming departures shows **"No departures"**. "Loading…" is only shown before the very first successful response.
+- If the board stays on "Loading…", check the stop IDs with `node scripts/api-sample.js <stopGroupId>/<stopId>`. Skyss answers an unknown stop with an error ("Holdeplassen finnes ikke"), and the module keeps retrying. A quay paired with the wrong `stopGroupId` gives an empty result, so it shows "No departures".
 
 ## Development
 
@@ -219,12 +222,14 @@ npm install
 Useful scripts:
 
 ```bash
-npm test            # unit tests (Node's built-in test runner, Node 20+)
+npm run check       # everything below in one go, one line per check
+npm test            # unit tests (Node's built-in test runner, Node 20+; one dot per test)
 npm run lint        # ESLint
 npm run lint:css    # stylelint
 npm run lint:md     # markdownlint
 npm run format      # apply Prettier (use format:check to verify only)
 npm run typecheck   # tsc --checkJs via JSDoc / @ts-check
+npm run api         # short summary of a live API response (args: stopPlace[/quay,...])
 ```
 
 Continuous integration runs all of the above (tests on Node 20/22/24, plus ESLint, stylelint, markdownlint, format-check, type-check and `npm audit`) via GitHub Actions on every push and pull request. `npm audit` fails the build for runtime dependencies (there must be none) and only warns about dev tooling. A husky pre-commit hook runs lint-staged on changed files. Pull requests are auto-merged into `main` once CI passes — mark a PR as a draft to prevent it. Dependabot's patch/minor updates are auto-merged the same way; major updates need a manual merge.

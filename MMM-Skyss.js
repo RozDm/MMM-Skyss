@@ -11,6 +11,10 @@
 const SKYSS_MINUTES_RE = /([0-9]+) min/;
 const SKYSS_CLOCK_RE = /([0-9]{2}):([0-9]{2})/;
 
+// Departure statuses that carry live tracking. The API also sends "Schedule"
+// (timetable only) and "Cancelled"; an unknown status is treated as timetable.
+const SKYSS_LIVE_STATUSES = ["OnTime", "Early", "Late"];
+
 /**
  * MagicMirror module definition. Typed loosely as a string-keyed record because
  * MagicMirror injects many members at runtime (translate, sendSocketNotification,
@@ -284,15 +288,25 @@ const Skyss = {
 
             for (var j = 0; j < times.length; j++) {
                 var journey = times[j];
+                // A cancelled departure keeps its timetable DisplayTime but will not
+                // run, so it is left out rather than shown as a departure.
+                if (journey.Status === "Cancelled") {
+                    if (self.config.debug)
+                        console.log(
+                            "[MMM-Skyss][DEBUG] Skipping cancelled",
+                            journey.RoutePublicIdentifier,
+                            journey.AimedTime
+                        );
+                    continue;
+                }
                 var stop = departure.Stops[journey.StopIdentifier] || {};
                 var timestamp;
 
-                // Only departures with live tracking ("OnTime", "Late", ...) carry a
-                // realtime estimate. Every row has a DisplayTime, but for "Schedule"
-                // rows it is just the timetable, so those use the exact AimedTime and
-                // are not flagged as realtime (which drives the realtime accent).
-                var hasLiveData =
-                    typeof journey.Status === "string" && journey.Status !== "" && journey.Status !== "Schedule";
+                // Only live-tracked departures carry a realtime estimate. Every row has
+                // a DisplayTime, but for "Schedule" rows it is just the timetable, so
+                // those use the exact AimedTime and are not flagged as realtime (which
+                // drives the realtime accent).
+                var hasLiveData = SKYSS_LIVE_STATUSES.indexOf(journey.Status) !== -1;
                 var realtimeStamp =
                     self.config.useRealtime && hasLiveData
                         ? self.processSkyssDisplaytime(journey.DisplayTime)

@@ -1,5 +1,16 @@
 # MMM-Skyss Change Log
 
+## [2.6.1] - 2026-10-29
+
+- Fix: cancelled departures were shown as normal departures with the realtime accent. The API marks them `Status: "Cancelled"` but keeps their timetable `DisplayTime`; they are now left out. Live statuses are now an explicit list (`OnTime`, `Early`, `Late`), so an unknown status no longer counts as realtime.
+- Docs: every documented API fact was checked against live responses (about 5,900 departures at bus, light rail and boat stops) and corrected where wrong: the full `Status` list (`Early` and `Cancelled` were missing), the `ServiceMode` values, that the API requires only the StopPlace (an empty quay list returns all of its quays), and what an unknown stop id returns. CLAUDE.md now holds the verified API facts and a code map; HANDOFF.md holds only the state and open items.
+- Tooling, with less output for people and fewer tokens for AI agents:
+  - `npm test` prints one dot per test (failures in full);
+  - `npm run check` runs every CI check and prints one line each;
+  - Prettier and markdownlint print only findings;
+  - `npm run api` (`scripts/api-sample.js`) prints a short summary of a live API response, or lists a StopPlace's quays with platforms and lines, instead of the raw JSON.
+- Tests: real `Early` and `Cancelled` rows (41 → 42 tests); the fixture keeps only the quays its departures use.
+
 ## [2.6.0] - 2026-10-29
 
 Checked against live Skyss API responses, which showed that four features did not work with the real data:
