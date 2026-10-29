@@ -1,0 +1,403 @@
+{
+  "PassingTimes": [
+    {
+      "RouteDirectionIdentifier": "SKY:Line:12~outbound",
+      "RoutePublicIdentifier": "12",
+      "StopIdentifier": "NSR:Quay:53028",
+      "TripDestination": "Lønborglien",
+      "TripDestinationDescription": "",
+      "Status": "Late",
+      "AimedTime": "2026-10-29T05:33:00.000Z",
+      "DisplayTime": "1 min",
+      "PredictionInaccurate": false,
+      "ServiceMode": "Bus",
+      "DirectionName": "Til Lønborglien",
+      "Passed": false
+    },
+    {
+      "RouteDirectionIdentifier": "SKY:Line:1~outbound",
+      "RoutePublicIdentifier": "1",
+      "StopIdentifier": "NSR:Quay:53130",
+      "TripDestination": "Bergen lufthavn",
+      "TripDestinationDescription": "",
+      "Status": "Schedule",
+      "AimedTime": "2026-10-29T05:36:00.000Z",
+      "DisplayTime": "06:36",
+      "PredictionInaccurate": false,
+      "ServiceMode": "Light rail",
+      "DirectionName": "Til Bergen lufthavn",
+      "Passed": false
+    },
+    {
+      "RouteDirectionIdentifier": "SKY:Line:1~inbound",
+      "RoutePublicIdentifier": "1",
+      "StopIdentifier": "NSR:Quay:53140",
+      "TripDestination": "Bergen sentrum",
+      "TripDestinationDescription": "",
+      "Status": "Schedule",
+      "AimedTime": "2026-10-29T05:37:00.000Z",
+      "DisplayTime": "06:37",
+      "PredictionInaccurate": false,
+      "ServiceMode": "Light rail",
+      "DirectionName": "Til Bergen sentrum",
+      "Passed": false
+    },
+    {
+      "RouteDirectionIdentifier": "SKY:Line:13~inbound",
+      "RoutePublicIdentifier": "13",
+      "StopIdentifier": "NSR:Quay:53032",
+      "TripDestination": "Solheimsviken",
+      "TripDestinationDescription": "",
+      "Status": "OnTime",
+      "AimedTime": "2026-10-29T05:40:00.000Z",
+      "DisplayTime": "5 min",
+      "PredictionInaccurate": false,
+      "ServiceMode": "Bus",
+      "DirectionName": "Til Solheimsviken",
+      "Passed": false
+    },
+    {
+      "RouteDirectionIdentifier": "SKY:Line:12~inbound",
+      "RoutePublicIdentifier": "12",
+      "StopIdentifier": "NSR:Quay:53032",
+      "TripDestination": "Lægdene - Montana",
+      "TripDestinationDescription": "",
+      "Status": "Late",
+      "AimedTime": "2026-10-29T05:42:00.000Z",
+      "DisplayTime": "8 min",
+      "PredictionInaccurate": false,
+      "ServiceMode": "Bus",
+      "DirectionName": "Til Lægdene - Montana",
+      "Passed": false
+    },
+    {
+      "RouteDirectionIdentifier": "SKY:Line:14~outbound",
+      "RoutePublicIdentifier": "14",
+      "StopIdentifier": "NSR:Quay:53034",
+      "TripDestination": "Fyllingsdalen terminal",
+      "TripDestinationDescription": "",
+      "Status": "OnTime",
+      "AimedTime": "2026-10-29T05:45:00.000Z",
+      "DisplayTime": "10 min",
+      "PredictionInaccurate": false,
+      "ServiceMode": "Bus",
+      "DirectionName": "Til Fyllingsdalen terminal",
+      "Passed": false
+    },
+    {
+      "RouteDirectionIdentifier": "NWY:Line:93575edb-437e-556a-a91b-64da423bd0d3~QmVyZ2VuIGx1ZnRoYXZuIEZsZXNsYW5k",
+      "RoutePublicIdentifier": "FB51",
+      "StopIdentifier": "NSR:Quay:53029",
+      "TripDestination": "Bergen lufthavn Flesland",
+      "TripDestinationDescription": "",
+      "Status": "Schedule",
+      "AimedTime": "2026-10-29T05:50:00.000Z",
+      "DisplayTime": "06:50",
+      "PredictionInaccurate": false,
+      "ServiceMode": "Bus",
+      "DirectionName": "Til Bergen lufthavn Flesland",
+      "Passed": false
+    },
+    {
+      "RouteDirectionIdentifier": "SKY:Line:51~outbound",
+      "RoutePublicIdentifier": "51",
+      "StopIdentifier": "NSR:Quay:53034",
+      "TripDestination": "Birkelandsskiftet",
+      "TripDestinationDescription": "",
+      "Status": "OnTime",
+      "AimedTime": "2026-10-29T05:51:00.000Z",
+      "DisplayTime": "06:51",
+      "PredictionInaccurate": false,
+      "ServiceMode": "Bus",
+      "DirectionName": "Til Birkelandsskiftet",
+      "Passed": false
+    },
+    {
+      "RouteDirectionIdentifier": "SKY:Line:12~inbound",
+      "RoutePublicIdentifier": "12",
+      "StopIdentifier": "NSR:Quay:53032",
+      "TripDestination": "Lægdene - Montana",
+      "TripDestinationDescription": "",
+      "Status": "Late",
+      "AimedTime": "2026-10-29T05:53:00.000Z",
+      "DisplayTime": "06:53",
+      "PredictionInaccurate": false,
+      "ServiceMode": "Bus",
+      "DirectionName": "Til Lægdene - Montana",
+      "Passed": false
+    },
+    {
+      "RouteDirectionIdentifier": "SKY:Line:14~outbound",
+      "RoutePublicIdentifier": "14",
+      "StopIdentifier": "NSR:Quay:53034",
+      "TripDestination": "Fyllingsdalen terminal",
+      "TripDestinationDescription": "",
+      "Status": "Schedule",
+      "AimedTime": "2026-10-29T05:55:00.000Z",
+      "DisplayTime": "06:55",
+      "PredictionInaccurate": false,
+      "ServiceMode": "Bus",
+      "DirectionName": "Til Fyllingsdalen terminal",
+      "Passed": false
+    }
+  ],
+  "Messages": [
+    {
+      "StopIdentifier": "NSR:Quay:53032",
+      "RouteDirectionIdentifier": "SKY:Line:13~inbound",
+      "RoutePublicIdentifier": "13",
+      "Messages": ["Sydnestunnelen stengd kl. 22.00-05.30. Sjå skyss.no/avvik.   "],
+      "messagesWithValidityPeriod": [
+        {
+          "message": "Sydnestunnelen stengd kl. 22.00-05.30. Sjå skyss.no/avvik.   ",
+          "start": "2026-10-29T20:45:00.000Z",
+          "end": "2026-10-30T04:30:00.000Z"
+        }
+      ]
+    },
+    {
+      "StopIdentifier": "NSR:Quay:53024",
+      "RouteDirectionIdentifier": "SKY:Line:460~outbound",
+      "RoutePublicIdentifier": "460",
+      "Messages": ["Sydnestunnelen stengd kl. 22.00-05.30. Sjå skyss.no/avvik.   "],
+      "messagesWithValidityPeriod": [
+        {
+          "message": "Sydnestunnelen stengd kl. 22.00-05.30. Sjå skyss.no/avvik.   ",
+          "start": "2026-10-29T20:45:00.000Z",
+          "end": "2026-10-30T04:30:00.000Z"
+        }
+      ]
+    },
+    {
+      "StopIdentifier": "NSR:Quay:53024",
+      "RouteDirectionIdentifier": "SKY:Line:445~outbound",
+      "RoutePublicIdentifier": "445",
+      "Messages": ["Sydnestunnelen stengd kl. 22.00-05.30. Sjå skyss.no/avvik.   "],
+      "messagesWithValidityPeriod": [
+        {
+          "message": "Sydnestunnelen stengd kl. 22.00-05.30. Sjå skyss.no/avvik.   ",
+          "start": "2026-10-29T20:45:00.000Z",
+          "end": "2026-10-30T04:30:00.000Z"
+        }
+      ]
+    },
+    {
+      "StopIdentifier": "NSR:Quay:53024",
+      "RouteDirectionIdentifier": "SKY:Line:450~outbound",
+      "RoutePublicIdentifier": "450",
+      "Messages": ["Sydnestunnelen stengd kl. 22.00-05.30. Sjå skyss.no/avvik.   "],
+      "messagesWithValidityPeriod": [
+        {
+          "message": "Sydnestunnelen stengd kl. 22.00-05.30. Sjå skyss.no/avvik.   ",
+          "start": "2026-10-29T20:45:00.000Z",
+          "end": "2026-10-30T04:30:00.000Z"
+        }
+      ]
+    },
+    {
+      "StopIdentifier": "NSR:Quay:53023",
+      "RouteDirectionIdentifier": "SKY:Line:50E~outbound",
+      "RoutePublicIdentifier": "50E",
+      "Messages": ["Sydnestunnelen stengd kl. 22.00-05.30. Sjå skyss.no/avvik.   "],
+      "messagesWithValidityPeriod": [
+        {
+          "message": "Sydnestunnelen stengd kl. 22.00-05.30. Sjå skyss.no/avvik.   ",
+          "start": "2026-10-29T20:45:00.000Z",
+          "end": "2026-10-30T04:30:00.000Z"
+        }
+      ]
+    },
+    {
+      "StopIdentifier": "NSR:Quay:53025",
+      "RouteDirectionIdentifier": "SKY:Line:400~outbound",
+      "RoutePublicIdentifier": "400",
+      "Messages": ["Sydnestunnelen stengd kl. 22.00-05.30. Sjå skyss.no/avvik.   "],
+      "messagesWithValidityPeriod": [
+        {
+          "message": "Sydnestunnelen stengd kl. 22.00-05.30. Sjå skyss.no/avvik.   ",
+          "start": "2026-10-29T20:45:00.000Z",
+          "end": "2026-10-30T04:30:00.000Z"
+        }
+      ]
+    },
+    {
+      "StopIdentifier": "NSR:Quay:53028",
+      "RouteDirectionIdentifier": "SKY:Line:39~outbound",
+      "RoutePublicIdentifier": "39",
+      "Messages": ["Linje 39: Køyrer ikkje nedom Bekkjarvik. "],
+      "messagesWithValidityPeriod": [
+        {
+          "message": "Linje 39: Køyrer ikkje nedom Bekkjarvik. ",
+          "start": "2026-10-23T02:10:00.000Z",
+          "end": "2038-01-18T02:14:00.000Z"
+        }
+      ]
+    },
+    {
+      "StopIdentifier": "NSR:Quay:53027",
+      "RouteDirectionIdentifier": "SKY:Line:40~outbound",
+      "RoutePublicIdentifier": "40",
+      "Messages": ["Sydnestunnelen stengd kl. 22.00-05.30. Sjå skyss.no/avvik.   "],
+      "messagesWithValidityPeriod": [
+        {
+          "message": "Sydnestunnelen stengd kl. 22.00-05.30. Sjå skyss.no/avvik.   ",
+          "start": "2026-10-29T20:45:00.000Z",
+          "end": "2026-10-30T04:30:00.000Z"
+        }
+      ]
+    }
+  ],
+  "Stops": {
+    "NSR:Quay:53029": {
+      "Identifier": "NSR:Quay:53029",
+      "ServiceModes": ["Bus"],
+      "Description": "Bergen busstasjon R",
+      "Platform": "R",
+      "StopGroupIdentifier": "NSR:StopPlace:62356"
+    },
+    "NSR:Quay:106982": {
+      "Identifier": "NSR:Quay:106982",
+      "ServiceModes": ["Light rail"],
+      "Description": "Bergen busstasjon D",
+      "Platform": "D",
+      "StopGroupIdentifier": "NSR:StopPlace:62356"
+    },
+    "NSR:Quay:106983": {
+      "Identifier": "NSR:Quay:106983",
+      "ServiceModes": ["Light rail"],
+      "Description": "Bergen busstasjon C",
+      "Platform": "C",
+      "StopGroupIdentifier": "NSR:StopPlace:62356"
+    },
+    "NSR:Quay:53022": {
+      "Identifier": "NSR:Quay:53022",
+      "ServiceModes": ["Bus"],
+      "Description": "Bergen busstasjon O",
+      "Platform": "O",
+      "StopGroupIdentifier": "NSR:StopPlace:62356"
+    },
+    "NSR:Quay:53032": {
+      "Identifier": "NSR:Quay:53032",
+      "ServiceModes": ["Bus"],
+      "Description": "Bergen busstasjon S",
+      "Platform": "S",
+      "StopGroupIdentifier": "NSR:StopPlace:62356"
+    },
+    "NSR:Quay:53035": {
+      "Identifier": "NSR:Quay:53035",
+      "ServiceModes": ["Bus"],
+      "Description": "Bergen busstasjon K",
+      "Platform": "K",
+      "StopGroupIdentifier": "NSR:StopPlace:62356"
+    },
+    "NSR:Quay:53024": {
+      "Identifier": "NSR:Quay:53024",
+      "ServiceModes": ["Bus"],
+      "Description": "Bergen busstasjon G",
+      "Platform": "G",
+      "StopGroupIdentifier": "NSR:StopPlace:62356"
+    },
+    "NSR:Quay:53045": {
+      "Identifier": "NSR:Quay:53045",
+      "ServiceModes": ["Bus"],
+      "Description": "Bergen busstasjon N",
+      "Platform": "N",
+      "StopGroupIdentifier": "NSR:StopPlace:62356"
+    },
+    "NSR:Quay:53034": {
+      "Identifier": "NSR:Quay:53034",
+      "ServiceModes": ["Bus"],
+      "Description": "Bergen busstasjon M",
+      "Platform": "M",
+      "StopGroupIdentifier": "NSR:StopPlace:62356"
+    },
+    "NSR:Quay:53023": {
+      "Identifier": "NSR:Quay:53023",
+      "ServiceModes": ["Bus"],
+      "Description": "Bergen busstasjon E",
+      "Platform": "E",
+      "StopGroupIdentifier": "NSR:StopPlace:62356"
+    },
+    "NSR:Quay:53026": {
+      "Identifier": "NSR:Quay:53026",
+      "ServiceModes": ["Bus"],
+      "Description": "Bergen busstasjon L",
+      "Platform": "L",
+      "StopGroupIdentifier": "NSR:StopPlace:62356"
+    },
+    "NSR:Quay:100080": {
+      "Identifier": "NSR:Quay:100080",
+      "ServiceModes": ["Bus"],
+      "Description": "Bergen busstasjon P",
+      "Platform": "P",
+      "StopGroupIdentifier": "NSR:StopPlace:62356"
+    },
+    "NSR:Quay:53025": {
+      "Identifier": "NSR:Quay:53025",
+      "ServiceModes": ["Bus"],
+      "Description": "Bergen busstasjon F",
+      "Platform": "F",
+      "StopGroupIdentifier": "NSR:StopPlace:62356"
+    },
+    "NSR:Quay:53028": {
+      "Identifier": "NSR:Quay:53028",
+      "ServiceModes": ["Bus"],
+      "Description": "Bergen busstasjon U",
+      "Platform": "U",
+      "StopGroupIdentifier": "NSR:StopPlace:62356"
+    },
+    "NSR:Quay:53027": {
+      "Identifier": "NSR:Quay:53027",
+      "ServiceModes": ["Bus"],
+      "Description": "Bergen busstasjon H",
+      "Platform": "H",
+      "StopGroupIdentifier": "NSR:StopPlace:62356"
+    },
+    "NSR:Quay:53130": {
+      "Identifier": "NSR:Quay:53130",
+      "ServiceModes": ["Light rail"],
+      "Description": "Byparken A",
+      "Platform": "A",
+      "StopGroupIdentifier": "NSR:StopPlace:30859"
+    },
+    "NSR:Quay:53031": {
+      "Identifier": "NSR:Quay:53031",
+      "ServiceModes": ["Bus"],
+      "Description": "Bergen busstasjon Q",
+      "Platform": "Q",
+      "StopGroupIdentifier": "NSR:StopPlace:62356"
+    },
+    "NSR:Quay:53141": {
+      "Identifier": "NSR:Quay:53141",
+      "ServiceModes": ["Light rail"],
+      "Description": "Bergen busstasjon A",
+      "Platform": "A",
+      "StopGroupIdentifier": "NSR:StopPlace:62356"
+    },
+    "NSR:Quay:53030": {
+      "Identifier": "NSR:Quay:53030",
+      "ServiceModes": ["Bus"],
+      "Description": "Bergen busstasjon J",
+      "Platform": "J",
+      "StopGroupIdentifier": "NSR:StopPlace:62356"
+    },
+    "NSR:Quay:53140": {
+      "Identifier": "NSR:Quay:53140",
+      "ServiceModes": ["Light rail"],
+      "Description": "Bergen busstasjon B",
+      "Platform": "B",
+      "StopGroupIdentifier": "NSR:StopPlace:62356"
+    }
+  },
+  "StopGroups": {
+    "NSR:StopPlace:62356": {
+      "Identifier": "NSR:StopPlace:62356",
+      "Description": "Bergen busstasjon"
+    },
+    "NSR:StopPlace:30859": {
+      "Identifier": "NSR:StopPlace:30859",
+      "Description": "Byparken"
+    }
+  },
+  "ServerTime": "2026-10-29T05:34:33.836Z"
+}

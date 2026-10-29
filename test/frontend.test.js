@@ -2,11 +2,31 @@
 
 const { test } = require("node:test");
 const assert = require("node:assert");
+const fs = require("node:fs");
+const path = require("node:path");
 const { loadFrontend, makeInstance } = require("./helpers");
 
 const def = loadFrontend();
 const pad = (n) => ("0" + n).slice(-2);
 const now = Date.now();
+
+// A real Skyss v3 /departures response for Bergen busstasjon + Byparken, captured
+// 2026-10-29 and trimmed to 10 representative departures (Stops and Messages are
+// complete). Tests that depend on the clock pin "now" to its ServerTime, the
+// moment its relative DisplayTime values ("5 min") were computed.
+const FIXTURE_RAW = fs.readFileSync(path.join(__dirname, "fixtures", "departures-bergen-busstasjon.json"), "utf8");
+const FIXTURE = JSON.parse(FIXTURE_RAW);
+const FIXTURE_NOW = Date.parse(FIXTURE.ServerTime);
+
+// Feed a raw API response through getStopInfo, the way the node helper delivers it.
+function parseResponse(ctx, raw) {
+    let result;
+    ctx.getStopInfo(ctx.config.stops, (err, items) => {
+        result = { err, items };
+    });
+    ctx.socketNotificationReceived("getstop", { id: ctx._sent[ctx._sent.length - 1].p.id, response: raw });
+    return result;
+}
 
 // ---- formatTime ---------------------------------------------------------
 
@@ -15,9 +35,19 @@ test("formatTime: past departure collapses to NOW (no negative minutes)", () => 
     assert.strictEqual(ctx.formatTime(new Date(now - 2 * 60000).toISOString()), "NOW");
 });
 
-test("formatTime: humanizes minutes under the threshold", () => {
+test("formatTime: humanizes minutes under the threshold", (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: FIXTURE_NOW });
     const ctx = makeInstance(def);
-    assert.strictEqual(ctx.formatTime(new Date(now + 5 * 60000 + 1000).toISOString()), "5 MINUTES");
+    assert.strictEqual(ctx.formatTime(new Date(FIXTURE_NOW + 5 * 60000).toISOString()), "5 MINUTES");
+});
+
+test("formatTime: rounds to the nearest minute like Skyss (1:59 -> 2, 0:20 -> now)", (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: FIXTURE_NOW });
+    const ctx = makeInstance(def);
+    const inMs = (ms) => new Date(FIXTURE_NOW + ms).toISOString();
+    assert.strictEqual(ctx.formatTime(inMs(119000)), "2 MINUTES");
+    assert.strictEqual(ctx.formatTime(inMs(80000)), "1MIN");
+    assert.strictEqual(ctx.formatTime(inMs(20000)), "NOW");
 });
 
 test("formatTime: 24h clock above the threshold", () => {
@@ -200,7 +230,7 @@ test("getDom: LOADING before first load, NODEPARTURES after", () => {
     assert.strictEqual(msg().textContent, "NODEPARTURES");
 });
 
-test("getTableRow: realtime accent follows usedRealtime, not the API Status", () => {
+test("getTableRow: accents the time only for a live realtime estimate", () => {
     const ctx = makeInstance(def);
     const rowFor = (journey) => {
         const tr = ctx.getTableRow(journey);
@@ -209,12 +239,10 @@ test("getTableRow: realtime accent follows usedRealtime, not the API Status", ()
     const base = { service: "Bus", lineName: "5", destinationName: "Town", platform: "", stopName: "" };
     const ts = new Date(now + 9 * 60000).toISOString();
 
-    // Realtime used -> accented, even when Status happens to be "Schedule".
-    const rt = rowFor(Object.assign({}, base, { usedRealtime: true, time: { Status: "Schedule", Timestamp: ts } }));
+    const rt = rowFor(Object.assign({}, base, { usedRealtime: true, time: { Timestamp: ts } }));
     assert.match(rt.className, /sanntid/);
 
-    // Realtime not used -> not accented, even when Status is not "Schedule".
-    const sched = rowFor(Object.assign({}, base, { usedRealtime: false, time: { Status: "Realtime", Timestamp: ts } }));
+    const sched = rowFor(Object.assign({}, base, { usedRealtime: false, time: { Timestamp: ts } }));
     assert.doesNotMatch(sched.className, /sanntid/);
 });
 
@@ -228,7 +256,7 @@ test("getDom: renders a tbody with one row per journey", () => {
             destinationName: "Town",
             platform: "A",
             stopName: "Stop",
-            time: { Status: "Realtime", Timestamp: new Date(now + 9 * 60000).toISOString() }
+            time: { Status: "OnTime", Timestamp: new Date(now + 9 * 60000).toISOString() }
         }
     ];
     const table = ctx.getDom().childNodes.find((c) => c.tagName === "table");
@@ -239,19 +267,81 @@ test("getDom: renders a tbody with one row per journey", () => {
     assert.strictEqual(tbody.childNodes.length, 1);
 });
 
+// ---- real API response (fixture) ----------------------------------------
+
+test("real response: platform comes from the quay's Stops entry", (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: FIXTURE_NOW });
+    const ctx = makeInstance(def, { stops: [{ stopId: "1", stopGroupId: "2" }] });
+    const { err, items } = parseResponse(ctx, FIXTURE_RAW);
+    assert.strictEqual(err, null);
+    assert.deepStrictEqual(
+        items.map((i) => i.platform),
+        ["U", "A", "B", "S", "S", "M", "R", "M", "S", "M"]
+    );
+});
+
+test("real response: only live departures are realtime; timetable rows use AimedTime", (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: FIXTURE_NOW });
+    const ctx = makeInstance(def, { stops: [{ stopId: "1", stopGroupId: "2" }] });
+    const { items } = parseResponse(ctx, FIXTURE_RAW);
+    // Every row has a DisplayTime, but only OnTime/Late rows carry live data.
+    assert.deepStrictEqual(
+        items.map((i) => i.usedRealtime),
+        FIXTURE.PassingTimes.map((p) => p.Status !== "Schedule")
+    );
+    FIXTURE.PassingTimes.forEach((p, i) => {
+        if (p.Status === "Schedule") assert.strictEqual(items[i].time.Timestamp, p.AimedTime);
+    });
+});
+
+test("real response: useRealtime false uses the timetable everywhere", (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: FIXTURE_NOW });
+    const ctx = makeInstance(def, { stops: [{ stopId: "1", stopGroupId: "2" }], useRealtime: false });
+    const { items } = parseResponse(ctx, FIXTURE_RAW);
+    assert.ok(items.every((i) => i.usedRealtime === false));
+    assert.deepStrictEqual(
+        items.map((i) => i.time.Timestamp),
+        FIXTURE.PassingTimes.map((p) => p.AimedTime)
+    );
+});
+
+test("real response: rendered minutes match Skyss' own DisplayTime", (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: FIXTURE_NOW });
+    const ctx = makeInstance(def, { stops: [{ stopId: "1", stopGroupId: "2" }] });
+    const { items } = parseResponse(ctx, FIXTURE_RAW);
+    t.mock.timers.tick(50); // the DOM is rendered a moment after the response is parsed
+    const shown = {};
+    FIXTURE.PassingTimes.forEach((p, i) => {
+        if (/^\d+ min$/.test(p.DisplayTime)) shown[p.DisplayTime] = ctx.formatTime(items[i].time.Timestamp);
+    });
+    assert.deepStrictEqual(shown, {
+        "1 min": "1MIN",
+        "5 min": "5 MINUTES",
+        "8 min": "8 MINUTES",
+        "10 min": "10 MINUTES"
+    });
+});
+
 // ---- deviations ---------------------------------------------------------
 
-test("getStopInfo: extracts deviation text from the Messages array", () => {
+const TUNNEL_MSG = "Sydnestunnelen stengd kl. 22.00-05.30. Sjå skyss.no/avvik.";
+const LINE39_MSG = "Linje 39: Køyrer ikkje nedom Bekkjarvik.";
+
+test("real response: deviations list the active messages", (t) => {
+    // At capture time only the line 39 message is active: the tunnel closure
+    // (valid 20:45Z-04:30Z) was already sent in the morning.
+    t.mock.timers.enable({ apis: ["Date"], now: FIXTURE_NOW });
     const ctx = makeInstance(def, { stops: [{ stopId: "1", stopGroupId: "2" }] });
-    ctx.getStopInfo(ctx.config.stops, () => {});
-    const id = ctx._sent[0].p.id;
-    const body = JSON.stringify({
-        PassingTimes: [],
-        Stops: {},
-        Messages: [{ Text: "Buss 4 er forsinket" }, "Plain string", { Foo: "ignored" }, { Title: "Omkjøring" }]
-    });
-    ctx.socketNotificationReceived("getstop", { id, response: body });
-    assert.deepStrictEqual(ctx.deviations, ["Buss 4 er forsinket", "Plain string", "Omkjøring"]);
+    parseResponse(ctx, FIXTURE_RAW);
+    assert.deepStrictEqual(ctx.deviations, [LINE39_MSG]);
+});
+
+test("extractDeviations: honours validity periods and shows each text once", () => {
+    const ctx = makeInstance(def);
+    const at = (iso) => ctx.extractDeviations(FIXTURE.Messages, Date.parse(iso));
+    // The tunnel closure is repeated for 7 routes but listed once.
+    assert.deepStrictEqual(at("2026-10-29T21:00:00Z"), [TUNNEL_MSG, LINE39_MSG]);
+    assert.deepStrictEqual(at("2026-10-30T05:00:00Z"), [LINE39_MSG]);
 });
 
 test("getDom: renders deviations above the departures with a warning icon", () => {
@@ -276,17 +366,22 @@ test("getDom: no deviation box when showDeviations is false", () => {
     assert.strictEqual(devBox, undefined);
 });
 
-test("getStopInfo: skips a Message whose field is a non-string object", () => {
-    const ctx = makeInstance(def, { stops: [{ stopId: "1", stopGroupId: "2" }] });
-    ctx.getStopInfo(ctx.config.stops, () => {});
-    const id = ctx._sent[0].p.id;
-    const body = JSON.stringify({
-        PassingTimes: [],
-        Stops: {},
-        Messages: [{ Text: { nb: "Forsinket", en: "Delayed" } }, { Title: "Omkjøring" }]
-    });
-    ctx.socketNotificationReceived("getstop", { id, response: body });
-    assert.deepStrictEqual(ctx.deviations, ["Omkjøring"]);
+test("extractDeviations: tolerates odd entries and falls back to Messages", () => {
+    const ctx = makeInstance(def);
+    const nowMs = Date.parse("2026-10-29T12:00:00Z");
+    const result = ctx.extractDeviations(
+        [
+            null,
+            { Messages: "not an array" },
+            { messagesWithValidityPeriod: [null, { message: 42 }] },
+            { messagesWithValidityPeriod: [], Messages: ["  Only text  ", { nb: "an object" }] },
+            { messagesWithValidityPeriod: [{ message: "No bounds" }] },
+            { messagesWithValidityPeriod: [{ message: "Bad dates", start: "soon", end: "later" }] }
+        ],
+        nowMs
+    );
+    assert.deepStrictEqual(result, ["Only text", "No bounds", "Bad dates"]);
+    assert.deepStrictEqual(ctx.extractDeviations(undefined, nowMs), []);
 });
 
 test("getStopInfo: realtime 'x min' uses x minutes (no +1 fudge)", () => {

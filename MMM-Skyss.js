@@ -287,12 +287,17 @@ const Skyss = {
                 var stop = departure.Stops[journey.StopIdentifier] || {};
                 var timestamp;
 
-                var realtimeStamp = self.processSkyssDisplaytime(journey.DisplayTime);
-                // Whether we actually used a realtime estimate for this departure.
-                // Drives the realtime accent in the table, so scheduled times are not
-                // highlighted as realtime when useRealtime is off or unavailable.
-                var usedRealtime =
-                    self.config.useRealtime && realtimeStamp instanceof Date && !isNaN(realtimeStamp.getTime());
+                // Only departures with live tracking ("OnTime", "Late", ...) carry a
+                // realtime estimate. Every row has a DisplayTime, but for "Schedule"
+                // rows it is just the timetable, so those use the exact AimedTime and
+                // are not flagged as realtime (which drives the realtime accent).
+                var hasLiveData =
+                    typeof journey.Status === "string" && journey.Status !== "" && journey.Status !== "Schedule";
+                var realtimeStamp =
+                    self.config.useRealtime && hasLiveData
+                        ? self.processSkyssDisplaytime(journey.DisplayTime)
+                        : undefined;
+                var usedRealtime = realtimeStamp instanceof Date && !isNaN(realtimeStamp.getTime());
                 if (usedRealtime) {
                     timestamp = realtimeStamp.toISOString();
                     if (self.config.debug)
@@ -326,32 +331,15 @@ const Skyss = {
                         Status: journey.Status
                     },
                     usedRealtime: usedRealtime,
-                    platform: journey.Platform || ""
+                    // The platform letter ("A", "B", ...) belongs to the quay, so it is
+                    // on the Stops entry, not on the departure. Many roadside stops
+                    // have none.
+                    platform: stop.Platform || ""
                 });
             }
 
-            // Service messages / deviations live in the top-level "Messages" array.
-            // The message object shape is undocumented, so pull text from the common
-            // field names defensively; the raw array is logged under debug so a real
-            // disruption sample can refine this.
             if (self.config.debug) console.log("[MMM-Skyss][DEBUG] Messages:", JSON.stringify(departure.Messages));
-            self.deviations = (Array.isArray(departure.Messages) ? departure.Messages : [])
-                .map(function (m) {
-                    if (typeof m === "string") return m.trim();
-                    if (m && typeof m === "object") {
-                        // The message shape is undocumented and a field may itself be a
-                        // localised object, so only accept a non-empty *string* field
-                        // (otherwise we would render "[object Object]").
-                        var fields = [m.Text, m.Message, m.Title, m.Description, m.Body, m.Value];
-                        for (var i = 0; i < fields.length; i++) {
-                            if (typeof fields[i] === "string" && fields[i].trim()) return fields[i].trim();
-                        }
-                    }
-                    return "";
-                })
-                .filter(function (s) {
-                    return s.length > 0;
-                });
+            self.deviations = self.extractDeviations(departure.Messages, Date.now());
 
             if (self.config.debug) console.log("[MMM-Skyss][DEBUG] Processed", allStopItems.length, "stop items");
             callback(null, allStopItems);
@@ -443,6 +431,48 @@ const Skyss = {
         }
 
         return { stopGroups: filtered };
+    },
+
+    /**
+     * Turn the response's top-level `Messages` into the service-message texts to
+     * show: only messages valid right now, each distinct text once. Each entry is
+     * one affected route at one quay, so the same text repeats for every route:
+     *   { RoutePublicIdentifier, StopIdentifier, Messages: ["text"],
+     *     messagesWithValidityPeriod: [{ message: "text", start: ISO, end: ISO }] }
+     * Messages arrive before their validity period starts (tonight's closure is
+     * already sent in the morning), so the period is honoured when present.
+     * @param {any} messages the response's `Messages` value
+     * @param {number} nowMs the current time in milliseconds
+     * @returns {string[]}
+     */
+    extractDeviations: function (messages, nowMs) {
+        var texts = [];
+        var add = function (text) {
+            if (typeof text !== "string") return;
+            var trimmed = text.trim();
+            if (trimmed && texts.indexOf(trimmed) === -1) texts.push(trimmed);
+        };
+        // A missing or unparseable bound leaves that side of the period open.
+        var isActive = function (period) {
+            var start = Date.parse(period.start);
+            var end = Date.parse(period.end);
+            if (!isNaN(start) && nowMs < start) return false; // not started yet
+            if (!isNaN(end) && nowMs > end) return false; // already over
+            return true;
+        };
+
+        (Array.isArray(messages) ? messages : []).forEach(function (entry) {
+            if (!entry || typeof entry !== "object") return;
+            var periods = Array.isArray(entry.messagesWithValidityPeriod) ? entry.messagesWithValidityPeriod : [];
+            if (periods.length > 0) {
+                periods.forEach(function (period) {
+                    if (period && isActive(period)) add(period.message);
+                });
+            } else if (Array.isArray(entry.Messages)) {
+                entry.Messages.forEach(add);
+            }
+        });
+        return texts;
     },
 
     /**
@@ -584,8 +614,8 @@ const Skyss = {
         }
 
         var tdTime = document.createElement("td");
-        // Accent the time only when a realtime estimate was actually used, not merely
-        // because the API Status is not "Schedule".
+        // Accent the time only when it is a live realtime estimate (see getStopInfo);
+        // timetable-only departures stay unaccented.
         if (journey.usedRealtime) {
             tdTime.className = "time light sanntid";
         } else {
@@ -611,6 +641,9 @@ const Skyss = {
     /**
      * Format a departure time for display: "Now" / "1 min" / "x minutes" when the
      * departure is near, otherwise the clock time in the configured 12/24h format.
+     * Minutes are rounded to the nearest whole minute, as Skyss' own DisplayTime
+     * is (a departure 1:59 away reads "2 min"). Rounding down would show an
+     * "x min" estimate parsed a moment earlier as x-1.
      * @param {string|number|Date} t departure timestamp
      * @returns {string}
      */
@@ -618,7 +651,7 @@ const Skyss = {
         var now = new Date();
         var tti = new Date(t);
         var diff = tti.getTime() - now.getTime();
-        var min = Math.floor(diff / 60000);
+        var min = Math.round(diff / 60000);
 
         if (this.config.humanizeTimeTreshold !== 0) {
             if (min <= 0) {

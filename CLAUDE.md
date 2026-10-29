@@ -43,10 +43,12 @@ npm run format      # Prettier (use format:check to verify only)
 npm run typecheck   # tsc --checkJs via JSDoc / @ts-check
 ```
 
-CI (`.github/workflows/ci.yml`) runs all of these (tests on Node 18/20/22). Keep
+CI (`.github/workflows/ci.yml`) runs all of these (tests on Node 20/22/24). Keep
 it green: a green pull request is auto-merged into `main` and its branch deleted
 (`.github/workflows/auto-merge.yml`) — mark a PR as a **draft** to hold it.
-Fork / outside-contributor PRs are not auto-merged.
+Fork / outside-contributor PRs are not auto-merged; Dependabot PRs are, but only
+for patch/minor updates. `npm audit` blocks CI only for runtime dependencies
+(there must be none); advisories in dev tooling show up as a warning.
 
 ## Hard rules and conventions
 
@@ -70,13 +72,24 @@ Fork / outside-contributor PRs are not auto-merged.
 - Time formatting uses the native `Date` — the module no longer relies on the
   MagicMirror `moment` global. `formatClock` produces the 12/24h clock string and
   `processSkyssDisplaytime` parses Skyss' `DisplayTime` ("x min" / "HH:mm").
+  `formatTime` rounds to the nearest minute, as Skyss does; rounding down would
+  show a "5 min" estimate as 4 minutes a moment after it is parsed.
 - The Skyss endpoint is **POST-only**; opening it in a browser (a GET) returns a
-  `TEMPORARY_ERROR`. It is also **not reachable from CI / sandboxes**
-  (egress-blocked), so the module can only be verified live on a real mirror.
-- **Deviations** (route disruptions) come from the response's top-level `Messages`
-  array and are rendered best-effort (`showDeviations`, default on); the message
-  object shape is undocumented, so text is pulled from common field names — refine
-  it from a real sample captured with `debug: true` (the raw array is logged then).
+  `TEMPORARY_ERROR`. Whether a sandbox can reach it depends on its network policy
+  (blocked in some, reachable in others). When it is reachable, check parsing
+  against a live response (POST the request body from the README with `curl`)
+  instead of guessing the format. A wrong stop id still returns HTTP 200, with
+  `{"resultCode": "PERMANENT_ERROR", "errorMessage": "Holdeplassen finnes ikke"}`.
+- **Response format** (checked against live responses; a trimmed real response is
+  the test fixture in `test/fixtures/`): every departure has a `DisplayTime`, but
+  only rows whose `Status` is not `"Schedule"` (e.g. `OnTime`, `Late`) carry live
+  data. Scheduled rows use `AimedTime` and get no realtime accent. The platform
+  letter is on the quay (`Stops[id].Platform`), not on the departure.
+- **Deviations** (`showDeviations`, default on) come from the top-level `Messages`
+  array: one entry per affected route at a quay, `{ RoutePublicIdentifier,
+  StopIdentifier, Messages: [text], messagesWithValidityPeriod: [{ message, start,
+  end }] }`. The same text repeats for each route and arrives before it applies,
+  so `extractDeviations` keeps only currently valid texts, each once.
 - `humanizeTimeTreshold` is misspelled but kept for config back-compat;
   `humanizeTimeThreshold` is accepted as an alias.
 
