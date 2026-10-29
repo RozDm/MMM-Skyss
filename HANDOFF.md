@@ -5,11 +5,11 @@ in [`CLAUDE.md`](CLAUDE.md); history is in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## State
 
-Version 2.7.0. Parsing is verified against the live API, the review findings
+Version 2.7.1. Parsing is verified against the live API, the review findings
 are fixed, and the README screenshots are our own live captures. 54 tests run,
-including on a trimmed real response, and CI is green. One dev-tool advisory is
-open: markdownlint 0.42 pins `re2js` 2.8.6, and no fixed markdownlint is out yet
-(Dependabot will pick it up).
+including on a trimmed real response, and CI is green. GitHub Actions are
+pinned to commit SHAs, and `npm audit` reports no high advisories (only low
+ones in markdownlint's math support, via `katex`).
 
 ## Open items, by priority
 
@@ -25,5 +25,8 @@ open: markdownlint 0.42 pins `re2js` 2.8.6, and no fixed markdownlint is out yet
 - **Long outages.** The board keeps the first 200 departures of the last good
   response (`MAX_KEPT_DEPARTURES`); after a few hours without updates it runs out
   and shows "Cannot reach Skyss".
-- **Supply chain.** GitHub Actions are pinned by major tag, not by SHA, while
-  `auto-merge.yml` runs with `contents: write`.
+- **Temporary override.** `package.json` forces `re2js` to `~2.8.7` because
+  markdownlint 0.42 pins the vulnerable 2.8.6. Remove the `overrides` entry
+  once `npm view markdownlint dependencies.re2js` shows 2.8.7 or later.
+- **Real mirror.** 2.7.0 was verified with tests and a stand using
+  MagicMirror's CSS, not on a running MagicMirror; check it once on the mirror.

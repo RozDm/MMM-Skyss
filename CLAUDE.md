@@ -12,7 +12,7 @@ the Skyss v3 API; a maintained fork of MMM-Ruter. State and open items:
   summary. Never print a raw response (35 KB to over 1 MB).
 - Skip `package-lock.json` (~35k tokens), `node_modules/`, `images/` and
   `test/fixtures/` (the API facts below describe them). In `CHANGELOG.md` read
-  only the top entry. `MMM-Skyss.js` is ~700 lines: grep for the method you need.
+  only the top entry. `MMM-Skyss.js` is ~900 lines: grep for the method you need.
 
 ## Architecture
 
@@ -82,8 +82,13 @@ the Skyss v3 API; a maintained fork of MMM-Ruter. State and open items:
 Node 20/22/24). A green non-draft PR is auto-merged and its branch deleted
 (`auto-merge.yml`). A draft is held; marking it ready runs CI, and a green run
 then auto-merges it (no manual merge needed). Dependabot's grouped weekly
-patch/minor PR is auto-merged too; majors and fork PRs are not. `npm audit`
-blocks only on runtime dependencies; advisories in dev tooling are a warning.
+patch/minor PR is auto-merged too; majors and fork PRs are not. GitHub Actions
+are pinned to release commit SHAs with a `# vX.Y.Z` comment (Dependabot bumps
+both, grouped weekly). `npm audit` blocks only on runtime dependencies;
+advisories in dev tooling are a warning. `package.json` `overrides` forces
+`re2js` to `~2.8.7` because markdownlint 0.42 pins the vulnerable 2.8.6; drop
+the override once markdownlint itself depends on 2.8.7 or later
+(`npm view markdownlint dependencies.re2js`).
 README screenshots: `node scripts/screenshots.js <MagicMirror/css/main.css>`
 (Playwright, live data; no MagicMirror install needed).
 
