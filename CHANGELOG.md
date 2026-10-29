@@ -1,5 +1,33 @@
 # MMM-Skyss Change Log
 
+## [2.7.0] - 2026-10-29
+
+- Errors are visible. When there is nothing to show, the board names the problem instead of staying on "Loading…":
+  - "Stop not found – check stopId / stopGroupId": Skyss answers an unknown stop with HTTP 200 and `PERMANENT_ERROR`, or none of the configured quays belongs to its `stopGroupId`;
+  - "Cannot reach Skyss";
+  - "No valid stops configured" (polling then stops).
+
+  The node helper now logs non-2xx responses and Skyss error bodies to the MagicMirror log. The frontend warns once per quay that Skyss does not know under its stop group.
+- The board keeps moving during an outage:
+  - a 15-second refresh keeps countdowns current between polls;
+  - departed rows drop off;
+  - `walkingTime` and `maxItems` apply at render time;
+  - an "Updated HH:mm" line shows when the data is older than two poll intervals.
+- New: a stop given only by `stopGroupId` shows every quay of that StopPlace (the API returns all of them for an empty quay list), so a single ID is enough.
+- New: cancelled departures are shown struck through and marked "Cancelled" / "Innstilt" (`showCancelled`, default `true`; `false` hides them as 2.6.1 did).
+- Departures with `Passed: true` are left out, and a live estimate flagged `PredictionInaccurate` is prefixed "ca." / "approx.".
+- No polling while the module is hidden: `suspend` / `resume` stop polling and redrawing, and fetch fresh data as soon as the module is shown again.
+- Icons match the service modes the API actually sends (`Bus`, `Light rail`, `Boat`, `Ferry`, `Train`); the icon now sits in a span, since Font Awesome classes on a table cell broke its layout.
+- CSS fixes:
+  - the header divider now renders (MagicMirror's `border-collapse: separate` ignores a border on `<thead>`, so it is drawn on the header cells);
+  - dead rules are removed (`.title`, `.rightalign`, `border: 1px`);
+  - `.sanntid` is scoped to the module, and the accents are defined once.
+- The response size cap is raised from 2 MB to 5 MB for StopPlace-only configs at big stations.
+- Install: `npm install --omit=dev` no longer fails with `husky: not found`. The `prepare` script skips the git hook when husky is not installed.
+- CI also runs when a draft PR is marked ready for review, so a green PR then auto-merges.
+- New screenshots: live captures of Bergen busstasjon (English) and Bryggen (Norwegian, with a service message), made by `scripts/screenshots.js` from the real module code, MagicMirror's stylesheet and live Skyss data.
+- Tests: 42 → 54. They now cover the error states, stale data, suspend/resume, StopPlace-only stops, cancelled, passed and inaccurate rows, icons and the helper's logging. The test config now starts from the module's own defaults.
+
 ## [2.6.1] - 2026-10-29
 
 - Fix: cancelled departures were shown as normal departures with the realtime accent. The API marks them `Status: "Cancelled"` but keeps their timetable `DisplayTime`; they are now left out. Live statuses are now an explicit list (`OnTime`, `Early`, `Late`), so an unknown status no longer counts as realtime.

@@ -5,35 +5,25 @@ in [`CLAUDE.md`](CLAUDE.md); history is in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## State
 
-Version 2.6.1. Parsing is verified against the live API (see CLAUDE.md), 42
-tests run on a trimmed real response, and CI is green. One dev-tool advisory is
+Version 2.7.0. Parsing is verified against the live API, the review findings
+are fixed, and the README screenshots are our own live captures. 54 tests run,
+including on a trimmed real response, and CI is green. One dev-tool advisory is
 open: markdownlint 0.42 pins `re2js` 2.8.6, and no fixed markdownlint is out yet
 (Dependabot will pick it up).
 
 ## Open items, by priority
 
-- **Errors are invisible.** An unknown stop id returns HTTP 200 with
-  `PERMANENT_ERROR` ("Holdeplassen finnes ikke"): the board shows "Loading…"
-  forever and nothing is logged without `debug`. A quay under the wrong
-  `stopGroupId` silently shows "No departures". The node helper does not log
-  non-2xx responses either.
-- **The board freezes during an outage.** `updateDom` runs only after a
-  successful poll, so "3 minutes" stops counting down, departed rows stay and
-  nothing marks the data as stale. Fix with a render timer and a "last updated"
-  hint.
-- **The config could need only the StopPlace.** The API returns all quays for
-  `stops: []`, but `buildRequestBody` drops groups without quays.
-- **`npm install --omit=dev` fails** (`husky: not found`); use
-  `"prepare": "husky || true"`.
+- **Time zone.** A live row's `"HH:mm"` DisplayTime is parsed in the mirror's
+  local time, which assumes the mirror runs in Europe/Oslo. Timetable rows use
+  the absolute `AimedTime` and are not affected.
 - **Traffic.** Each poll returns the rest of the service day (~0.35 KB per
-  departure: ~70 KB for a 2-quay stop in the morning, ~0.5 MB for Bergen
-  busstasjon). There is no gzip, and polling continues while the module is hidden
-  (no `suspend` / `resume`).
-- **CSS.** The `thead` divider never renders (MagicMirror sets
-  `border-collapse: separate`); `.title`, `.rightalign` and `border: 1px` are
-  dead; `.sanntid` is not scoped to the module.
-- **Cancelled departures** are hidden; Skyss's own board shows them as
-  "Innstilt", which the module could do too.
-- **Small:** `Passed` and `PredictionInaccurate` are ignored; the icon map lists
-  service modes the API does not send (`Express`, `Airport bus`, `Ferry`,
-  `Train`); the screenshots in `images/` come from the upstream fork.
+  departure); the API has no limit parameter and no gzip. Polling already pauses
+  while the module is hidden.
+- **Messages come and go.** A service message appears alongside its route's
+  departures. At Bryggen, the line 39 message dropped out of the response after
+  the bus left. The board simply follows the response.
+- **Long outages.** The board keeps the first 200 departures of the last good
+  response (`MAX_KEPT_DEPARTURES`); after a few hours without updates it runs out
+  and shows "Cannot reach Skyss".
+- **Supply chain.** GitHub Actions are pinned by major tag, not by SHA, while
+  `auto-merge.yml` runs with `contents: write`.

@@ -4,10 +4,12 @@
 
 'MMM-Skyss' is a module based on the Ruter equivalent made by Cato Antonsen for displaying public transport information for the Bergen / Vestland (formerly Hordaland) region in Norway on a [MagicMirror²](https://magicmirror.builders/). It uses data from Skyss.no. Skyss is a registered trademark of Vestland County Council (Vestland fylkeskommune, formerly Hordaland), which is not affiliated with this product. Content from Skyss APIs may be copyrighted.
 
-![1](images/MMM-Skyss-1.png)
-![2](images/MMM-Skyss-2.png)
+![Bergen busstasjon in English: table header, platform letters, bus and light rail icons; orange times are live realtime estimates](images/MMM-Skyss-1.png)
+![Bryggen in Norwegian, with a Skyss service message above the departures](images/MMM-Skyss-2.png)
 
-Current version is 2.6.1. See [changelog](CHANGELOG.md "Version history") for version history.
+*Live captures from 29 October 2026: Bergen busstasjon in English (`showHeader`, `showPlatform`) and Bryggen in Norwegian with an active service message. Orange times are live realtime estimates.*
+
+Current version is 2.7.0. See [changelog](CHANGELOG.md "Version history") for version history.
 
 ## Installation
 
@@ -23,7 +25,7 @@ Clone the repository:
 git clone https://github.com/RozDm/MMM-Skyss.git
 ````
 
-This module has **no external dependencies** — there is no `npm install` step. Once cloned it is ready to be configured.
+This module has **no external dependencies** — there is no `npm install` step. Once cloned it is ready to be configured. (Running `npm install --omit=dev` in the module folder anyway is harmless.)
 
 Add the module to the modules array in the `config/config.js` file by adding the following section. You can change this configuration later when you see this works:
 
@@ -51,6 +53,8 @@ Add the module to the modules array in the `config/config.js` file by adding the
 
 **Note:** You can use either just the numeric IDs (e.g., `"55861"`) or the full IDs with prefixes (e.g., `"NSR:Quay:55861"`). The module will automatically add the `NSR:Quay:` and `NSR:StopPlace:` prefixes if needed.
 
+The simplest stop is a whole StopPlace: `stops: [{ stopGroupId: "62356" }]` shows the departures from every quay of Bergen busstasjon (see [Stops](#stops)).
+
 # Configuration options
 
 These are the valid configuration options you can put inside the config array above:
@@ -69,8 +73,9 @@ maxReloadInterval | Upper bound (MS) for the exponential backoff used after API 
 animationSpeed | How fast the animation changes when updating mirror - in milliseconds | 0  
 fade | Set this to true to fade list from light to dark | true  
 fadePoint | Start fading on 1/4th of the list | 0.25
-useRealtime | Use Skyss' realtime estimate for departures with live tracking (status `OnTime`, `Early` or `Late`); those times are highlighted. Departures without live data always show the timetable time and are not highlighted. Cancelled departures are never shown | true
+useRealtime | Use Skyss' realtime estimate for departures with live tracking (status `OnTime`, `Early` or `Late`); those times are highlighted, prefixed "approx." / "ca." when Skyss marks the estimate as inaccurate. Departures without live data always show the timetable time and are not highlighted | true
 showDeviations | Show Skyss service messages / deviations (from the API's `Messages` field) when present | true
+showCancelled | Show cancelled departures, struck through and marked "Cancelled" / "Innstilt". Set to `false` to hide them | true
 debug | Enable verbose console logging for troubleshooting | false
 
 ## Skyss API v3 Migration (IMPORTANT)
@@ -125,7 +130,13 @@ This produces the exact same request body as listing each quay separately.
 
 ## Stops
 
-You have to configure at least one stop. Each stop needs a `stopGroupId` (the StopPlace ID, which the Skyss v3 API requires) and a `stopId` (the Quay ID).
+You have to configure at least one stop. Each stop needs a `stopGroupId` (the StopPlace ID, which the Skyss v3 API requires). Add a `stopId` (or `stopIds`) to show only some of its quays, for example one direction; leave them out to show every quay of the stop:
+
+```javascript
+stops: [
+  { stopGroupId: "62356" } // all quays of Bergen busstasjon
+]
+```
 
 ### How to find Stop (Quay) and Stop Group (StopPlace) IDs
 
@@ -175,11 +186,11 @@ stops: [
 
 Stop option | Comment
 ---|---
-stopId | Numeric Quay ID (e.g., `"55861"`) or full ID (e.g., `"NSR:Quay:55861"`)
-stopIds | (Alternative grouped config) Array of quay IDs belonging to the same stopGroupId
-stopGroupId | Numeric StopPlace ID (e.g., `"32379"`) or full ID (e.g., `"NSR:StopPlace:32379"`)
+stopGroupId | Required. Numeric StopPlace ID (e.g., `"32379"`) or full ID (e.g., `"NSR:StopPlace:32379"`). On its own it shows every quay of the stop
+stopId | Optional. Numeric Quay ID (e.g., `"55861"`) or full ID (e.g., `"NSR:Quay:55861"`)
+stopIds | Optional (alternative grouped config). Array of quay IDs belonging to the same stopGroupId
 
-**Note:** Multiple quays usually share the same StopPlace. Always pair every quay with the correct stopGroupId or use the grouped form.
+**Note:** Multiple quays usually share the same StopPlace. Always pair every quay with the correct stopGroupId, use the grouped form, or give only the stopGroupId.
 
 ## Debugging
 
@@ -207,9 +218,15 @@ Example:
 
 ## Behavior on errors and empty results
 
-- While the API is unreachable or returns malformed data, the **last good departures stay on screen** instead of the board going blank, and the next poll is delayed with exponential backoff up to `maxReloadInterval`.
-- A successful response with no upcoming departures shows **"No departures"**. "Loading…" is only shown before the very first successful response.
-- If the board stays on "Loading…", check the stop IDs with `node scripts/api-sample.js <stopGroupId>/<stopId>`. Skyss answers an unknown stop with an error ("Holdeplassen finnes ikke"), and the module keeps retrying. A quay paired with the wrong `stopGroupId` gives an empty result, so it shows "No departures".
+- While the API cannot be reached, the **last good departures stay on screen and keep counting down**. Departures that have left drop off, and an "Updated HH:mm" line shows how old the data is. The next poll is delayed with exponential backoff up to `maxReloadInterval`.
+- When the board has nothing to show, it says why instead of staying on "Loading…":
+  - **"Stop not found – check stopId / stopGroupId"**: Skyss does not know the stop, or none of the configured quays belongs to its `stopGroupId`;
+  - **"Cannot reach Skyss"**;
+  - **"No valid stops configured"**.
+- The reason is also logged. API and network errors go to the MagicMirror log; a quay that does not belong to its `stopGroupId` is reported in the browser console.
+- A successful response with no upcoming departures shows **"No departures"**.
+- To check stop IDs, run `node scripts/api-sample.js <stopGroupId>/<stopId>` in the module folder.
+- While the module is hidden (for example by a pages module), it does not poll Skyss; it refreshes as soon as it is shown again.
 
 ## Development
 
@@ -232,9 +249,11 @@ npm run typecheck   # tsc --checkJs via JSDoc / @ts-check
 npm run api         # short summary of a live API response (args: stopPlace[/quay,...])
 ```
 
-Continuous integration runs all of the above (tests on Node 20/22/24, plus ESLint, stylelint, markdownlint, format-check, type-check and `npm audit`) via GitHub Actions on every push and pull request. `npm audit` fails the build for runtime dependencies (there must be none) and only warns about dev tooling. A husky pre-commit hook runs lint-staged on changed files. Pull requests are auto-merged into `main` once CI passes — mark a PR as a draft to prevent it. Dependabot's patch/minor updates are auto-merged the same way; major updates need a manual merge.
+Continuous integration runs all of the above (tests on Node 20/22/24, plus ESLint, stylelint, markdownlint, format-check, type-check and `npm audit`) via GitHub Actions on every push and pull request. `npm audit` fails the build for runtime dependencies (there must be none) and only warns about dev tooling. A husky pre-commit hook runs lint-staged on changed files. Pull requests are auto-merged into `main` once CI passes — mark a PR as a draft to prevent it; marking it ready for review runs CI again, and a green run then merges it. Dependabot's patch/minor updates are auto-merged the same way; major updates need a manual merge.
 
 The tests run against a real Skyss API response captured in `test/fixtures/` (trimmed to a few departures), so parsing is checked against the actual response format.
+
+The screenshots above are regenerated with live data by `node scripts/screenshots.js <path to MagicMirror/css/main.css>`. It needs Playwright with Chromium; see the comment at the top of the script.
 
 ## Translations
 

@@ -9,8 +9,34 @@ const keepAliveAgent =
 
 /** @type {Record<string, any>} */
 const helper = {
+    // Safety cap so a misbehaving endpoint can't exhaust memory. A whole station
+    // (a StopPlace-only stop) returns up to ~0.5 MB, so this leaves room for several.
+    maxResponseBytes: 5 * 1024 * 1024,
+
     start: function () {
         console.log("Starting module: " + this.name);
+    },
+
+    /**
+     * Log an error body from the API to the MagicMirror log. Skyss answers a bad
+     * request with HTTP 200 and e.g. {"resultCode":"PERMANENT_ERROR",
+     * "errorMessage":"Holdeplassen finnes ikke"} for an unknown stop. Error bodies
+     * are tiny, so a (large) departures response is not parsed here.
+     * @param {string} data the response text
+     */
+    logApiError: function (data) {
+        if (data.length > 2048 || data.indexOf('"resultCode"') === -1) return;
+        try {
+            var body = JSON.parse(data);
+            if (!body.resultCode) return;
+            console.error(
+                "[MMM-Skyss] Skyss API error: " +
+                    [body.resultCode, body.errorCode, body.errorMessage].filter(Boolean).join(" ") +
+                    (body.resultCode === "PERMANENT_ERROR" ? " (check stopId / stopGroupId)" : "")
+            );
+        } catch {
+            // Not JSON after all: the frontend reports it as a parse error.
+        }
     },
 
     /**
@@ -44,9 +70,6 @@ const helper = {
             }
         };
 
-        // Safety cap so a misbehaving/compromised endpoint can't exhaust memory
-        const MAX_RESPONSE_BYTES = 2 * 1024 * 1024; // 2 MB
-
         var req = https.request(options, (res) => {
             if (debug) console.log("[MMM-Skyss] API response status:", res.statusCode);
 
@@ -55,6 +78,7 @@ const helper = {
             var status = res.statusCode || 0;
             if (status < 200 || status >= 300) {
                 res.resume(); // drain so the socket can be freed
+                console.error("[MMM-Skyss] Skyss API answered HTTP " + status);
                 self.sendSocketNotification("getstop", { id: id, err: "HTTP " + status });
                 return;
             }
@@ -66,7 +90,7 @@ const helper = {
             res.on("data", (chunk) => {
                 if (aborted) return;
                 size += Buffer.byteLength(chunk);
-                if (size > MAX_RESPONSE_BYTES) {
+                if (size > self.maxResponseBytes) {
                     aborted = true;
                     console.error("[MMM-Skyss] API response exceeded size limit, aborting");
                     req.destroy(new Error("Response too large"));
@@ -84,6 +108,7 @@ const helper = {
                     console.log("[MMM-Skyss] API response received, data length:", data.length);
                     console.log("[MMM-Skyss] Response preview:", data.substring(0, 200) + "...");
                 }
+                self.logApiError(data);
                 self.sendSocketNotification("getstop", { id: id, response: data });
             });
         });

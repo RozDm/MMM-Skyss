@@ -46,35 +46,21 @@ function loadFrontend() {
 // Timers and DOM updates are stubbed so tests stay synchronous.
 function makeInstance(def, configOverrides) {
     const ctx = Object.create(def);
-    ctx.config = Object.assign(
-        {
-            stops: [],
-            timeFormat: "HH:mm",
-            maxItems: 5,
-            walkingTime: 0,
-            humanizeTimeTreshold: 15,
-            serviceReloadInterval: 30000,
-            maxReloadInterval: 300000,
-            animationSpeed: 0,
-            useRealtime: true,
-            showDeviations: true,
-            fade: true,
-            fadePoint: 0.25,
-            showHeader: false,
-            showPlatform: false,
-            showStopName: false,
-            debug: false
-        },
-        configOverrides
-    );
+    // The module's own defaults, with the 24h format start() derives from config.
+    ctx.config = Object.assign({}, def.defaults, { timeFormat: "HH:mm" }, configOverrides);
     ctx.name = "MMM-Skyss";
     ctx.identifier = "test_instance";
+    // The state start() sets up.
     ctx.journeys = [];
     ctx.deviations = [];
     ctx.requests = {};
     ctx.requestSeq = 0;
     ctx.instanceId = "inst-" + Math.random().toString(36).slice(2, 8);
     ctx.hasLoaded = false;
+    ctx.lastSuccess = 0;
+    ctx.error = null;
+    ctx.unknownStops = false;
+    ctx.warnedQuays = {};
     ctx.consecutiveErrors = 0;
     ctx.translate = (k) => k;
     ctx.updateDom = () => {
