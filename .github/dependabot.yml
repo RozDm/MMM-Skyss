@@ -20,5 +20,12 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # Actions are pinned to commit SHAs, so every release is an update: one
+    # weekly PR for patch/minor bumps (auto-merged once CI is green).
+    groups:
+      actions:
+        update-types:
+          - "minor"
+          - "patch"
     labels:
       - "dependencies"

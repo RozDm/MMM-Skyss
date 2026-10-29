@@ -9,7 +9,7 @@
 
 *Live captures from 29 October 2026: Bergen busstasjon in English (`showHeader`, `showPlatform`) and Bryggen in Norwegian with an active service message. Orange times are live realtime estimates.*
 
-Current version is 2.7.0. See [changelog](CHANGELOG.md "Version history") for version history.
+Current version is 2.7.1. See [changelog](CHANGELOG.md "Version history") for version history.
 
 ## Installation
 

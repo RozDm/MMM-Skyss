@@ -1,5 +1,13 @@
 # MMM-Skyss Change Log
 
+## [2.7.1] - 2026-10-29
+
+No change to the module itself; supply-chain hardening for the repository.
+
+- CI: GitHub Actions are pinned to their release commit SHAs (`actions/checkout` v7.0.1, `actions/setup-node` v7.1.0, `actions/github-script` v9.0.0), because a tag can be moved to other code. This matters most for `auto-merge.yml`, which can write to the repository. Dependabot bumps the SHA together with its version comment, grouped into one weekly PR.
+- Dev tooling: `re2js` is forced to 2.8.8 through `overrides`, which clears the high `npm audit` advisory. markdownlint 0.42 pins the vulnerable 2.8.6; drop the override once markdownlint moves on.
+- Docs: CLAUDE.md gives the current size of `MMM-Skyss.js` (~900 lines) and notes the action pinning and the override; HANDOFF.md is updated to match.
+
 ## [2.7.0] - 2026-10-29
 
 - Errors are visible. When there is nothing to show, the board names the problem instead of staying on "Loading…":
