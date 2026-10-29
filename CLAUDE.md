@@ -1,100 +1,93 @@
 # CLAUDE.md
 
-Guidance for Claude Code (and other agents) working in this repository.
-Current status and next steps for a fresh session are in [`HANDOFF.md`](HANDOFF.md).
+MagicMirror² module showing realtime Skyss (Bergen / Vestland) departures from
+the Skyss v3 API; a maintained fork of MMM-Ruter. State and open items:
+[`HANDOFF.md`](HANDOFF.md).
 
-## What this is
+## Saving tokens
 
-MMM-Skyss is a [MagicMirror²](https://magicmirror.builders/) module that shows
-realtime public-transport departures for the Bergen / Vestland region (Norway)
-using the Skyss v3 API. It is a maintained fork of MMM-Ruter.
+- `npm run check` runs every CI check and prints one line each (full output only
+  for a failure). `npm test` alone prints one dot per test.
+- Inspect the live API with `npm run -s api -- [stopPlace[/quay,…]]`: a short
+  summary. Never print a raw response (35 KB to over 1 MB).
+- Skip `package-lock.json` (~35k tokens), `node_modules/`, `images/` and
+  `test/fixtures/` (the API facts below describe them). In `CHANGELOG.md` read
+  only the top entry. `MMM-Skyss.js` is ~700 lines: grep for the method you need.
 
 ## Architecture
 
-A MagicMirror module has two halves that talk over socket notifications:
+- `MMM-Skyss.js`, the frontend (browser): `const Skyss = {…}` passed to
+  `Module.register`. `start` → `poll` (self-scheduling, exponential backoff up to
+  `maxReloadInterval`) → `getStopInfo` (`buildRequestBody` once, `sendRequest`,
+  parse, `extractDeviations`) → `getDom` (`getTableRow`, `formatTime` /
+  `formatClock`). `processSkyssDisplaytime` parses DisplayTime.
+- `node_helper.js`, the backend (Node), does all network I/O: it POSTs the body
+  to `https://skyss.giantleap.no/v3/departures` and returns the raw text (2 MB
+  cap, 15 s socket timeout).
+- Each request carries a per-instance id that the helper echoes back; the socket
+  notification reaches every module instance, and each one consumes only its own
+  ids.
+- On error the last good data stays on screen. "Loading" shows only before the
+  first success; an empty success shows "No departures".
 
-- `MMM-Skyss.js` — the **frontend**, runs in the browser/Electron renderer. Owns
-  config, polling, building the API request body, parsing the response and
-  rendering the DOM (`getDom`). It is the object `const Skyss = {…}` passed to
-  `Module.register`.
-- `node_helper.js` — the **backend**, runs in Node and is the only place that
-  does network I/O. It POSTs the request body to
-  `https://skyss.giantleap.no/v3/departures` and returns the raw response.
+## Skyss v3 API (verified live on 2026-10-29: bus, light rail and boat stops)
 
-Request/response correlation: the frontend tags every request with a unique
-per-instance id, `node_helper` echoes it back, and `socketNotificationReceived`
-only consumes responses for ids it issued. The socket notification is broadcast
-to every module instance, so this id keeps multiple instances from crossing
-responses.
+- POST only (a GET returns `TEMPORARY_ERROR`). Body:
+  `{ stopGroups: [{ id: "NSR:StopPlace:N", stops: [{ id: "NSR:Quay:N" }] }] }`.
+  The StopPlace id is required; `stops: []` returns all of its quays (the module
+  always sends quays). An unknown stop still returns HTTP 200, with
+  `{ resultCode: "PERMANENT_ERROR", errorMessage: "Holdeplassen finnes ikke" }`;
+  a quay under the wrong StopPlace returns an empty result.
+- Response: `PassingTimes`, `Stops` (keyed by quay id), `StopGroups`, `Messages`
+  and `ServerTime`, covering the rest of the service day (~0.35 KB per
+  departure).
+- Departure fields: `RoutePublicIdentifier`, `TripDestination`, `DirectionName`,
+  `StopIdentifier`, `ServiceMode` (`Bus`, `Light rail`, `Boat`), `AimedTime` (ISO),
+  `DisplayTime`, `Status`, `Passed`, `PredictionInaccurate`, plus the unused
+  `RouteDirectionIdentifier` and `TripDestinationDescription` (empty). There is no
+  platform and no expected-time field.
+- `Status` is `Schedule` (timetable only; most rows), a live `OnTime`, `Early` or
+  `Late`, or `Cancelled` (which keeps a timetable DisplayTime). `DisplayTime` is a
+  local `"HH:mm"`, or `"N min"` for a live row departing soon. The module takes the
+  DisplayTime only for live rows (`SKYSS_LIVE_STATUSES`; an unknown status counts
+  as timetable) and hides `Cancelled` rows.
+- Skyss rounds "N min" to the nearest minute, and so does `formatTime`. Rounding
+  down showed "5 min" as 4.
+- `Stops[quay]` has `Description` (the stop name; at stations it ends with the
+  platform letter), `Platform` (only on quays that have one), `ServiceModes` and
+  `StopGroupIdentifier`.
+- `Messages` has one entry per affected route at a quay:
+  `{ StopIdentifier, RoutePublicIdentifier, RouteDirectionIdentifier,
+  Messages: [text], messagesWithValidityPeriod: [{ message, start, end }] }`. The
+  same text repeats for every route and arrives before it applies;
+  `extractDeviations` keeps only currently valid texts, each once.
+- Whether a sandbox can reach the API depends on its network policy. When it
+  can, check facts with `npm run api` rather than guessing.
 
-Polling: `poll()` self-schedules with exponential backoff on error (capped by
-`maxReloadInterval`). On error the last good data stays on screen; a successful
-empty response shows "No departures"; "Loading" is shown only before the first
-successful poll.
+## Commands and CI
 
-## Commands
+`npm run check` = `lint` (ESLint), `lint:css`, `lint:md`, `format:check`,
+`typecheck` (`tsc --checkJs`, TypeScript 7) and `test` (`node:test`; CI runs
+Node 20/22/24). A green non-draft PR is auto-merged and its branch deleted
+(`auto-merge.yml`). A draft is held, and marking it ready does not re-run CI, so
+merge it by hand. Dependabot's grouped weekly patch/minor PR is auto-merged too;
+majors and fork PRs are not. `npm audit` blocks only on runtime dependencies;
+advisories in dev tooling are a warning.
 
-```bash
-npm test            # unit tests (node:test, no deps)
-npm run lint        # ESLint
-npm run lint:css    # stylelint
-npm run lint:md     # markdownlint
-npm run format      # Prettier (use format:check to verify only)
-npm run typecheck   # tsc --checkJs via JSDoc / @ts-check
-```
+## Rules
 
-CI (`.github/workflows/ci.yml`) runs all of these (tests on Node 20/22/24). Keep
-it green: a green pull request is auto-merged into `main` and its branch deleted
-(`.github/workflows/auto-merge.yml`) — mark a PR as a **draft** to hold it.
-Fork / outside-contributor PRs are not auto-merged; Dependabot PRs are, but only
-for patch/minor updates. `npm audit` blocks CI only for runtime dependencies
-(there must be none); advisories in dev tooling show up as a warning.
-
-## Hard rules and conventions
-
-- **Zero runtime dependencies.** End users `git clone` and run — there is no
-  `npm install` step. All tooling (ESLint, Prettier, stylelint, markdownlint,
-  TypeScript, husky) is `devDependencies` only. Do not add a runtime dependency.
-- **No build step.** Source files are loaded as-is; that is why the project uses
-  plain JS plus `// @ts-check` and JSDoc rather than TypeScript.
-- **Type checking** is `tsc --checkJs` against JSDoc. The module object is typed
-  loosely (`@type {Record<string, any>}`) because MagicMirror injects members
-  (`this.translate`, `this.sendSocketNotification`, `this.updateDom`, …) at
-  runtime. Ambient MM globals are declared in `types/magicmirror.d.ts`.
-- **Formatting is Prettier's job** (4-space JS, 2-space JSON/CSS/YAML, print
-  width 120); ESLint handles correctness (`eqeqeq` and `no-unused-vars` are
-  errors).
-- **Docs must be markdownlint-clean** (`.markdownlint-cli2.jsonc`); the README
-  and CHANGELOG are excluded from Prettier (`.prettierignore`).
-
-## Gotchas
-
-- Time formatting uses the native `Date` — the module no longer relies on the
-  MagicMirror `moment` global. `formatClock` produces the 12/24h clock string and
-  `processSkyssDisplaytime` parses Skyss' `DisplayTime` ("x min" / "HH:mm").
-  `formatTime` rounds to the nearest minute, as Skyss does; rounding down would
-  show a "5 min" estimate as 4 minutes a moment after it is parsed.
-- The Skyss endpoint is **POST-only**; opening it in a browser (a GET) returns a
-  `TEMPORARY_ERROR`. Whether a sandbox can reach it depends on its network policy
-  (blocked in some, reachable in others). When it is reachable, check parsing
-  against a live response (POST the request body from the README with `curl`)
-  instead of guessing the format. A wrong stop id still returns HTTP 200, with
-  `{"resultCode": "PERMANENT_ERROR", "errorMessage": "Holdeplassen finnes ikke"}`.
-- **Response format** (checked against live responses; a trimmed real response is
-  the test fixture in `test/fixtures/`): every departure has a `DisplayTime`, but
-  only rows whose `Status` is not `"Schedule"` (e.g. `OnTime`, `Late`) carry live
-  data. Scheduled rows use `AimedTime` and get no realtime accent. The platform
-  letter is on the quay (`Stops[id].Platform`), not on the departure.
-- **Deviations** (`showDeviations`, default on) come from the top-level `Messages`
-  array: one entry per affected route at a quay, `{ RoutePublicIdentifier,
-  StopIdentifier, Messages: [text], messagesWithValidityPeriod: [{ message, start,
-  end }] }`. The same text repeats for each route and arrives before it applies,
-  so `extractDeviations` keeps only currently valid texts, each once.
-- `humanizeTimeTreshold` is misspelled but kept for config back-compat;
-  `humanizeTimeThreshold` is accepted as an alias.
-
-## Releasing
-
-Bump `version` in `package.json` (or run `npm version <patch|minor|major>`, whose
-`version` script syncs the "Current version is X" line in `README.md` via
-`scripts/sync-version.js`) and add a `CHANGELOG.md` entry.
+- Zero runtime dependencies and no build step: end users `git clone` and run.
+  All tooling is `devDependencies`.
+- Types come from JSDoc and `// @ts-check`. The module object is typed
+  `Record<string, any>` because MagicMirror injects members at runtime; MM
+  globals are declared in `types/magicmirror.d.ts`.
+- Prettier formats (4-space JS, 2-space JSON/CSS/YAML, width 120); ESLint
+  enforces `eqeqeq` and `no-unused-vars`. Docs must pass markdownlint; README and
+  CHANGELOG are not Prettier-formatted.
+- Tests run on a trimmed real response
+  (`test/fixtures/departures-bergen-busstasjon.json`). Pin the clock with
+  `t.mock.timers` (`Date`) in anything time-relative.
+- `humanizeTimeTreshold` is misspelled on purpose (config back-compat);
+  `humanizeTimeThreshold` is an alias.
+- Release: `npm version <patch|minor>` (it syncs the README version line), plus
+  a CHANGELOG entry.

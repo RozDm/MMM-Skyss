@@ -11,5 +11,8 @@
         "MD060": false // table pipe-spacing style — cosmetic, tables render fine on GitHub
     },
     "globs": ["**/*.md"],
-    "ignores": ["node_modules"]
+    "ignores": ["node_modules"],
+    // Print only findings: no version banner or progress lines.
+    "noBanner": true,
+    "noProgress": true
 }
