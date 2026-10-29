@@ -41,13 +41,30 @@ jobs:
                 continue;
               }
               // Public-repo safety: only auto-merge PRs from a branch in THIS
-              // repository (not a fork), opened by the owner or a collaborator.
-              // Fork / outside-contributor PRs require a manual review + merge.
+              // repository (not a fork), opened by the owner, a collaborator or
+              // Dependabot. Fork / outside-contributor PRs require a manual review
+              // + merge.
               const sameRepo = pr.head.repo && pr.head.repo.full_name === pr.base.repo.full_name;
               const trusted = ["OWNER", "MEMBER", "COLLABORATOR"].includes(pr.author_association);
-              if (!sameRepo || !trusted) {
+              const dependabot = pr.user && pr.user.login === "dependabot[bot]";
+              if (!sameRepo || !(trusted || dependabot)) {
                 core.info(`PR #${pr.number} is external (sameRepo=${sameRepo}, association=${pr.author_association}) — skipping.`);
                 continue;
+              }
+              if (dependabot) {
+                // Dependabot records each update's semver level in its commit
+                // message ("update-type: version-update:semver-minor"). Merge only
+                // when every update is a patch or minor bump; majors (and a head
+                // commit without that metadata, e.g. a pushed fix-up) wait for a
+                // manual review.
+                const { data: commit } = await github.rest.git.getCommit({ owner, repo, commit_sha: sha });
+                const types = [...commit.message.matchAll(/update-type:\s*(\S+)/g)].map((m) => m[1]);
+                const minorOrPatch =
+                  types.length > 0 && types.every((t) => /^version-update:semver-(minor|patch)$/.test(t));
+                if (!minorOrPatch) {
+                  core.info(`PR #${pr.number}: Dependabot ${types.join(", ") || "update of unknown type"} — needs a manual merge.`);
+                  continue;
+                }
               }
               try {
                 await github.rest.pulls.merge({

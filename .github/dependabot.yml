@@ -5,6 +5,14 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    # One weekly PR for all patch/minor dev-tool updates (auto-merged once CI is
+    # green); major bumps still arrive as separate PRs for a manual review.
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
     labels:
       - "dependencies"
 

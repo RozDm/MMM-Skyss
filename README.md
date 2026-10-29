@@ -7,7 +7,7 @@
 ![1](images/MMM-Skyss-1.png)
 ![2](images/MMM-Skyss-2.png)
 
-Current version is 2.5.0. See [changelog](CHANGELOG.md "Version history") for version history.
+Current version is 2.6.0. See [changelog](CHANGELOG.md "Version history") for version history.
 
 ## Installation
 
@@ -62,14 +62,14 @@ maxItems | Number of journeys to display | 5
 walkingTime | Minutes needed to reach the stop; departures leaving sooner than this are hidden (0 = show all) | 0
 showHeader | Set this to true to show header above the journeys | false
 showStopName | Show the name of each stop (the name is fetched automatically from the Skyss API) | false
-showPlatform | Set this to true to get the names of the platforms. Set this to true to check the name of the platform if you need to filter  | false
+showPlatform | Show the platform letter of each departure (e.g. `A` at Bergen busstasjon). Many roadside stops have no platform letter, so the column stays empty there | false
 humanizeTimeTreshold | If time to next journey is below this value, it will be displayed as "x minutes" instead of time. Set to `0` to disable humanization entirely — every departure then shows the clock time, including ones due now (no "Now"/"x minutes"). The correctly spelled `humanizeTimeThreshold` is accepted as an alias | 15
 serviceReloadInterval | Refresh rate in MS for how often we call Skyss's web service. NB! Don't set it too low! | 30000
 maxReloadInterval | Upper bound (MS) for the exponential backoff used after API errors. On failures the last good data stays on screen and the poll interval grows up to this value | 300000
 animationSpeed | How fast the animation changes when updating mirror - in milliseconds | 0  
 fade | Set this to true to fade list from light to dark | true  
 fadePoint | Start fading on 1/4th of the list | 0.25
-useRealtime | Use realtime (DisplayTime) when available instead of only scheduled time | true
+useRealtime | Use Skyss' realtime estimate for departures with live tracking (status `OnTime` / `Late`); those times are highlighted. Departures without live data always show the timetable time and are not highlighted | true
 showDeviations | Show Skyss service messages / deviations (from the API's `Messages` field) when present | true
 debug | Enable verbose console logging for troubleshooting | false
 
@@ -187,7 +187,7 @@ Set `debug: true` in the module config to print:
 - API response status (in node helper)
 - Number of passing times returned
 - Realtime vs scheduled selection per journey
-- Raw `Messages` array (to refine deviation parsing)
+- Raw `Messages` array (the service messages behind the deviations)
 
 Example:
 
@@ -227,7 +227,9 @@ npm run format      # apply Prettier (use format:check to verify only)
 npm run typecheck   # tsc --checkJs via JSDoc / @ts-check
 ```
 
-Continuous integration runs all of the above (tests on Node 20/22/24, plus ESLint, stylelint, markdownlint, format-check, type-check and `npm audit`) via GitHub Actions on every push and pull request. A husky pre-commit hook runs lint-staged on changed files. Pull requests are auto-merged into `main` once CI passes — mark a PR as a draft to prevent it.
+Continuous integration runs all of the above (tests on Node 20/22/24, plus ESLint, stylelint, markdownlint, format-check, type-check and `npm audit`) via GitHub Actions on every push and pull request. `npm audit` fails the build for runtime dependencies (there must be none) and only warns about dev tooling. A husky pre-commit hook runs lint-staged on changed files. Pull requests are auto-merged into `main` once CI passes — mark a PR as a draft to prevent it. Dependabot's patch/minor updates are auto-merged the same way; major updates need a manual merge.
+
+The tests run against a real Skyss API response captured in `test/fixtures/` (trimmed to a few departures), so parsing is checked against the actual response format.
 
 ## Translations
 
@@ -245,4 +247,4 @@ If you add another language, please open a pull request.
 
 Service messages / deviations from Skyss (the response's top-level `Messages` array) are shown above the departures with a warning icon and a distinct accent colour (separate from the orange used for realtime departure times), so a disruption is visible even when nothing is running. Disable with `showDeviations: false`.
 
-The `Messages` object shape is undocumented, so the text is extracted best-effort from common field names. If your live board shows a disruption that this module does not, capture the response with `debug: true` and open an issue with the `Messages` JSON so the extraction can be refined.
+Skyss sends a message once for every affected route and often before it applies (tonight's closure already arrives in the morning). The module shows each text once, and only while it is valid according to the message's validity period. If your live board shows a disruption that this module does not, capture the response with `debug: true` and open an issue with the `Messages` JSON.

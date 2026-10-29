@@ -1,5 +1,19 @@
 # MMM-Skyss Change Log
 
+## [2.6.0] - 2026-10-29
+
+Checked against live Skyss API responses, which showed that four features did not work with the real data:
+
+- Fix: service deviations were never shown. Real `Messages` entries look like `{ RoutePublicIdentifier, StopIdentifier, Messages: [text], messagesWithValidityPeriod: [{ message, start, end }] }`, with none of the field names the module looked for. They are now read from that shape, shown only within their validity period (Skyss sends tonight's closures in the morning) and each text once (the same text arrives once per affected route).
+- Fix: the platform column (`showPlatform`) was always empty. The platform letter is on the quay (`Stops[id].Platform`), not on the departure.
+- Fix: every departure was highlighted as realtime. Every row has a `DisplayTime`, but only rows whose `Status` is not `"Schedule"` (e.g. `OnTime`, `Late`) carry live data — 26 of 1442 rows in a live sample. Scheduled rows now use the exact `AimedTime` and are not highlighted (regression since 2.4.0).
+- Fix: near departures showed one minute less than Skyss ("5 min" as "4 minutes", "1 min" as "Now"). `formatTime` now rounds to the nearest minute, as Skyss does, instead of rounding down (regression since 2.3.2, which removed the old `+1` workaround).
+- Tests: a trimmed real API response (`test/fixtures/departures-bergen-busstasjon.json`) replaces invented response shapes, and clock-dependent tests pin the time with mock timers (35 → 41 tests).
+- CI: `npm audit` now fails the build only for runtime dependencies (the module must have none) and reports advisories in dev tooling as a warning, since upstream fixes there can lag (markdownlint currently pins a `re2js` version with a high advisory).
+- Dependencies: dev tooling updated (ESLint 10.13, Prettier 3.9.10, markdownlint-cli2 0.24, TypeScript 7 — `jsconfig.json` drops the removed `moduleResolution: node10`) and `actions/setup-node` v7. This supersedes the open Dependabot PRs.
+- Dependabot: patch/minor updates are grouped into one weekly PR and auto-merged once CI passes. The auto-merge workflow used to skip every Dependabot PR, so they piled up and hit the open-PR limit; major updates still need a manual merge.
+- Docs: README (`showPlatform`, `useRealtime`, deviations), CLAUDE.md and HANDOFF.md updated; HANDOFF lists the review findings that are still open.
+
 ## [2.5.0] - 2026-07-06
 
 - Dependency currency: the frontend no longer uses the MagicMirror `moment` global. Time parsing (`processSkyssDisplaytime`) and formatting (`formatClock`, 12/24h) are now done with the native `Date`, removing reliance on a deprecated, maintenance-only library. Behaviour is unchanged.
