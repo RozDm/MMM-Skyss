@@ -12,7 +12,7 @@ the Skyss v3 API; a maintained fork of MMM-Ruter. State and open items:
   summary. Never print a raw response (35 KB to over 1 MB).
 - Skip `package-lock.json` (~35k tokens), `node_modules/`, `images/` and
   `test/fixtures/` (the API facts below describe them). In `CHANGELOG.md` read
-  only the top entry. `MMM-Skyss.js` is ~700 lines: grep for the method you need.
+  only the top entry. `MMM-Skyss.js` is ~900 lines: grep for the method you need.
 
 ## Architecture
 
